@@ -1,0 +1,248 @@
+#!/usr/bin/perl
+
+# ---------------------------------------------------------------------------- #
+
+use strict;
+use warnings;
+
+use lib './workflow/modules';
+use Getopt::Std;
+#use Getopt::Long;
+use Modules;
+
+# ---------------------------------------------------------------------------- #
+
+# Script name:	Run.pl
+# Created by:	Eliot Stanton (estanton@wisc.edu)
+# Created on:	16 September, 2023
+# Modified:	21 September, 2023
+# Description:	Master script for coordinating running EPIC workflow.
+
+# ---------------------------------------------------------------------------- #
+
+# TODO: Add forking to Stats::diversity
+# TODO: Add forking to Stats::abundance
+# TODO: Add flagging within analysis
+
+# TODO: Remove rare taxa from phyloseq
+# TODO: Work on getting Maaslin to find significat data
+#	- Kill norming
+#	- Use a different file
+
+# TODO: Finish implementing subroutine to analyze DAA output -> output sorted
+#       significant results only
+# TODO: Implement figure for metabolic output - bar chart showing lfc for 
+#	significant outputs
+
+#---------------------------------------
+
+# TODO: Add forking for Stats::abundance
+# TODO: Add long opts to this script
+
+# --------------------------------------
+
+# TODO: Backup on Github
+
+# TODO: Implement Slurm job submissions:
+#	- Set up test Slurm environment
+#	- Set up flag for submitting jobs to slurm using sbatch
+#	- Set up tracking jobs for bwa, trimmomatic, and spades
+
+# ---------------------------------------------------------------------------- #
+
+# Import flags from the command line:
+my %hash_opts; getopts ("abcefhilmpqrs:uwy", \%hash_opts);
+
+# Define variables from %hash_opts:
+my $flag_all;
+my $flag_analysis	= $hash_opts{a};
+my $flag_subsample	= $hash_opts{b};
+my $flag_check		= $hash_opts{c};
+my $flag_predict	= $hash_opts{e};
+my $flag_forked		= $hash_opts{f};
+my $flag_help		= $hash_opts{h};
+my $flag_linear		= $hash_opts{l};
+my $flag_assemble	= $hash_opts{m};
+my $flag_process	= $hash_opts{p};
+my $flag_print		= $hash_opts{i};
+my $flag_qc		= $hash_opts{q};
+my $flag_card		= $hash_opts{r};
+my $flag_submit		= $hash_opts{s};
+my $flag_slurm		= $hash_opts{u};
+my $flag_wildcard	= $hash_opts{w};
+my $flag_classify	= $hash_opts{y};
+
+# Store relevant flags in %hash_opts:
+$hash_opts{flag_slurm}		= "1" if $flag_slurm;
+$hash_opts{flag_wildcard}	= "1" if $flag_wildcard;
+
+# Define and import data into $hash_config:
+my $hash_config = Configuration::unify ( \%hash_opts, "workflow", "config.yaml");
+
+# Define $flag_all if none of the stage flags are defined:
+unless ( $flag_subsample || $flag_process || $flag_qc || $flag_classify || 
+$flag_predict || $flag_assemble ) {
+
+	$flag_all = "1";
+
+}
+
+# Print help and exit if $flag_help:
+if ( $flag_help ) { Comms::help ( $hash_config ); exit; }
+
+# Print analysis and exit if $flag_print:
+if ( $flag_print ) { Comms::print_analysis ( $hash_config ); exit }
+
+# Perform complete check if specified:
+if ( $flag_check ) { Check::unify ( $hash_config ); Comms::print_command ("Check complete." );}
+
+# Move keys from %hash_fastq to @array_fastq:
+my @array_fastq    = @{Edit::keys_to_array ( $hash_config->{fastq} )};
+
+# If $flag_submit is defined restructure @array_fastq:
+if ( $flag_submit ) {
+
+	# TODO: Check if $flag_submit is a file and import data:
+	if ( -e $flag_submit ) {
+
+		$flag_submit	= (@{Edit::file_to_array( $flag_submit )})[0];
+
+	}
+
+	# Split samples into array:
+	my @array_samples = split ",", $flag_submit;
+
+	# Transfer elements to keys in hash:
+	my $hash_samples;
+	foreach my $var_name_ID ( @array_samples ) { $hash_samples->{$var_name_ID} = "1"; }
+
+	# Iterate through @array_fastq and remove elements that aren't in
+	# %hash_samples:
+	for ( my $i = 0; $i < scalar @array_fastq; $i++ ) {
+
+		my $var_name_ID	= $array_fastq[$i];
+
+		unless ( $hash_samples->{$var_name_ID} ) {
+
+			splice ( @array_fastq, $i, 1 );
+
+			$i--;
+
+		}
+	}
+
+}
+
+# If $flag_forked is specified:
+if ( $flag_forked ) {
+
+	# Fork subample stage:
+	Forks::fork_subsample ( $hash_config, \@array_fastq ) if $flag_subsample || $flag_all;
+
+	# Fork process stage to trim and filter reads:
+	Forks::fork_process ( $hash_config, \@array_fastq ) if $flag_process || $flag_all;
+
+	# Fork postprocess stage to assess read quality:
+	Forks::fork_postprocess ( $hash_config, \@array_fastq ) if $flag_qc || $flag_all;
+
+	# Fork classify stage to profile taxonomic and matabolic diversity:
+	Forks::fork_classify ( $hash_config, \@array_fastq ) if $flag_classify || $flag_all;
+
+	# Fork predict stage to identify ARGs:
+	Forks::fork_predict ( $hash_config, \@array_fastq ) if $flag_predict || $flag_all;
+
+	# Fork assemble stage to create genome assemblies and annotate them:
+	Forks::fork_assemble ( $hash_config, \@array_fastq ) if $flag_assemble || $flag_all;
+
+}
+
+# If flag_linear is defined:
+elsif ( $flag_linear ) {
+
+	# Load RGI database if needed:
+	Wrapper::rgi_load ( $hash_config, "wildcard" ) if $flag_predict || $flag_all;
+
+	# Iterate through each sample in @array_fastq:
+	foreach my $var_name_ID ( @array_fastq ) {
+
+		# Define the number of threads and memory available:
+		my $var_threads = $hash_config->{resources}->{threads};
+		my $var_memory	= $hash_config->{resources}->{memory};
+
+		# Run subsample stage:		
+		Stage::subsample ( $hash_config, $var_name_ID, $var_threads ) if $flag_subsample || $flag_all;
+
+		# Run process stage to trim and filter reads:
+		Stage::process ( $hash_config, $var_name_ID, $var_threads ) if $flag_process || $flag_all;
+
+		# Run post-process stage to assess read quality:
+		Stage::postprocess ( $hash_config, $var_name_ID, $var_threads ) if $flag_qc || $flag_all;
+
+		# Run classify stage to profile taxonomic and metabolic diversity:
+		Stage::classify ( $hash_config, $var_name_ID, $var_threads, "maximum" ) if $flag_classify || $flag_all;
+
+		# Run predict stage to identify ARGs:
+		Stage::predict ( $hash_config, $var_name_ID, $var_threads ) if $flag_predict || $flag_all;
+
+		# Run assemble stage to create genome assemblies and annotate them:
+		Stage::assemble ( $hash_config, $var_name_ID, $var_threads, $var_memory ) if $flag_assemble || $flag_all;
+
+	}
+
+}
+
+# Run analysis subroutines:
+if ( $flag_analysis ) {
+
+	# Define data structures:
+	my $hash_files		= $hash_config->{filenames};
+	my $hash_analysis	= $hash_config->{filenames}->{analysis};
+
+	# Check that commands are working:
+	Check::command ( $hash_config, "r-base" );
+
+	# Count sequencing reads:
+	Forks::fork_count_reads ( $hash_config, \@array_fastq );
+
+	# Check that metaphlan output files are in place:
+	foreach my $var_name_ID ( @array_fastq ) {
+
+		# Define file path:
+		my $file_metaphlan	= $hash_files->{$var_name_ID}->{file_metaphlan};		
+
+		unless ( -e $file_metaphlan ) { Comms::file_missing ( $file_metaphlan ); exit; }
+
+	}
+
+	# Merge individual metaphlan output into one file:
+	Analysis::merge_metaphlan ( $hash_config );
+
+	# Merge individual RGI output into one file:
+	Analysis::merge_rgi ( $hash_config, \@array_fastq );
+
+	# Merge individual gene families and path abundance files:
+	Analysis::process_humann ( $hash_config );
+
+	# TODO: Check that merged output files are in place:
+	foreach my $var_term ( keys %{$hash_analysis} ) {
+
+		foreach my $var_tag ( values %{$hash_analysis->{$var_term}} ) {
+
+			next unless $var_tag =~ /merged/;
+
+			unless ( -e $var_tag ) { Comms::file_missing ( $var_tag ); exit; }
+
+		}
+
+	}
+
+	# Calculate alpha and beta diversity:
+	Stats::diversity ( $hash_config );
+
+	# Perform differential abundance testing:
+	Stats::abundance ( $hash_config );
+
+	# Analyze DAA output:
+	Stats::process ( $hash_config );
+
+}

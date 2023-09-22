@@ -1,0 +1,201 @@
+---
+URLs:
+  chocophlan: https://huttenhower.sph.harvard.edu/humann_data/chocophlan
+  hg38: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna.gz
+  humann: http://cmprod1.cibio.unitn.it/biobakery4/metaphlan_databases
+  kraken2: https://genome-idx.s3.amazonaws.com/kraken
+  metaphlan: http://cmprod1.cibio.unitn.it/biobakery4/metaphlan_databases
+  phiX: ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/viral/Sinsheimervirus_phiX174/latest_assembly_versions/GCF_000819615.1_ViralProj14015/GCF_000819615.1_ViralProj14015_genomic.fna.gz
+  rgi_card: https://card.mcmaster.ca/download
+  rgi_wildcard: https://card.mcmaster.ca/download
+  uniref: https://huttenhower.sph.harvard.edu/humann_data/uniprot/uniref_annotated
+databases:
+  chocophlan: ref/humann_db/chocophlan
+  humann: ref/humann_db/mpa_vJan21
+  kraken2: ref/kraken2_db
+  metaphlan: ref/metaphlan_db
+  rgi_card: ref/rgi_card
+  rgi_wildcard: ref/rgi_card/wildcard
+  uniref: ref/humann_db/uniref
+directories:
+  analysis: analysis
+  container_home: singularity
+  fastq: fastq
+  logs: logs
+  ref: ref
+  work: work
+  wrapper_home: bin
+forks:
+  assemble: '4'
+  classify: '8'
+  count_reads: '8'
+  postprocess: '48'
+  predict: '8'
+  process: '16'
+  subsample: '48'
+genomes:
+  hg38: hg38.fa
+  phiX: phiX.fa
+resources:
+  memory: '896'
+  slurm:
+    bwa:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    fastqc:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    humann:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    kraken2:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    metaphlan:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    prokka:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    quast:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    r-base:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    rgi:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    samtools:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    seqtk:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    spades:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+    trimmomatic:
+      cpus: '4'
+      memory: 4GB
+      time: 1:00:00
+  threads: '120'
+software:
+  bwa:
+    command: bwa
+    container: bwa
+    repository: staphb
+    tag: 0.7.17
+  fastqc:
+    command: fastqc
+    container: fastqc
+    repository: staphb
+    tag: 0.11.9
+  humann:
+    command: humann
+    container: humann
+    def_file: humann_3.8.def
+    repository: biobakery
+    tag: '3.8'
+  kraken2:
+    command: kraken2
+    container: kraken2
+    repository: staphb
+    tag: 2.1.2-no-db
+  metaphlan:
+    command: metaphlan
+    container: metaphlan
+    def_file: metaphlan_4.0.6.def
+    repository: biobakery
+    tag: 4.0.6
+  prokka:
+    command: prokka
+    containter: prokka
+    repository: staphb
+    tag: 1.14.5
+  quast:
+    command: quast.py
+    container: quast
+    repository: staphb
+    tag: 5.0.2
+  r-base:
+    command: Rscript
+    container: r-base
+    def_file: r-base_4.3.1.def
+    repository: r-base
+    tag: 4.3.1
+  rgi:
+    command: rgi
+    container: rgi
+    repository: finlaymaguire
+    tag: latest
+  samtools:
+    command: samtools
+    container: samtools
+    repository: staphb
+    tag: 1.16.1
+  seqtk:
+    command: seqtk
+    container: seqtk
+    repository: staphb
+    tag: '1.3'
+  spades:
+    command: spades.py
+    container: spades
+    repository: staphb
+    tag: 3.15.5
+  trimmomatic:
+    command: trimmomatic
+    container: trimmomatic
+    repository: staphb
+    tag: '0.39'
+subdirectories:
+  amrfinder: work/amrfinder
+  bbtools_index: ref/bbtools
+  bwa: work/bwa
+  bwa_index: ref/bwa
+  dedupe: work/dedupe
+  def_files: workflow/def_files
+  fastqc: work/fastqc
+  humann: work/humann
+  kraken2: work/kraken2
+  metaphlan: work/metaphlan
+  prokka: work/prokka
+  quast: work/quast
+  resfinder: work/resfinder
+  rgi: work/rgi
+  seqtk: work/seqtk
+  shortbred: work/shortbred
+  spades: work/spades
+  trimmomatic: work/trimmomatic
+variables:
+  adapter: NexteraPE-PE
+  avgqual: '30'
+  leading: '20'
+  min_contig: '900'
+  min_reads: '100'
+  minlen: '150'
+  stats: /usr/bin/time -f \Mem:%M\KB\ \CPU:%P\ \Time:%E
+  sub: '0.02'
+  threads: '120'
+  trailing: '20'
+versions:
+  chocophlan: full_chocophlan.v201901_v31
+  humann: mpa_vJan21_CHOCOPhlAnSGB_202103
+  kraken2: k2_standard_16gb_20230314
+  metaphlan: mpa_vOct22_CHOCOPhlAnSGB_202212
+  rgi_card: 3.2.7
+  rgi_wildcard: 4.0.1
+  uniref: uniref90_annotated_v201901b_full

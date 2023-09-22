@@ -1,0 +1,15 @@
+Bootstrap: docker
+From: ubuntu:20.04
+
+%post
+  apt-get update
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y python python-dev python3 python3-dev python3-pip apt-transport-https openjdk-8-jre wget zip git-all zlib1g-dev libbz2-dev liblzma-dev libjpeg-dev
+  pip3 install boto3 cloudpickle awscli
+  pip3 install anadama2
+  apt-get install -y bowtie2
+  pip3 install numpy
+  pip3 install cython
+  pip3 install biom-format
+  git clone https://github.com/SegataLab/cmseq.git && cd cmseq && python3 setup.py install && cd ../ && rm -r cmseq
+  pip3 install metaphlan==4.0.6
+  metaphlan --install --nproc 96 --offline

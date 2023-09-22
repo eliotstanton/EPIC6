@@ -1,0 +1,10 @@
+Bootstrap: docker
+From: r-base:4.3.1
+
+%post
+	apt-get update && apt-get install -y curl libcurl4-openssl-dev cmake libfontconfig1-dev 
+	apt-get install -y libssl-dev libgsl-dev libharfbuzz-dev libfribidi-dev libcairo2-dev
+	apt-get install -y libgmp3-dev libpng-dev libtiff5-dev libjpeg-dev
+	apt-get install -y libmpfr-dev
+#	Rscript -e "install.packages('BiocManager', dependencies = TRUE)"
+#	Rscript -e "BiocManager::install('ANCOMBC', dependencies = TRUE)"
