@@ -118,7 +118,8 @@ box_plot <- function ( table_in, variable1, variable2 ) {
 				geom_boxplot(
 					outlier.colour = "BLUE",
 					show.legend = FALSE
-				)
+				) +
+				theme_classic ()
 
 	# Return plot_out:
 	return (plot_out)
@@ -240,8 +241,11 @@ beta_plot <- function ( df_in, metadata, palette ) {
 	percent_1 <- round( (explain_1 / explain_sum), digits = 4 )
 	percent_2 <- round( (explain_2 / explain_sum), digits = 4 )
 
-	percent_1 <- paste ( "pcoa1 % exp.", percent_1, sep = " " )
-	percent_2 <- paste ( "pcoa2 % exp.", percent_2, sep = " " )
+	percent_1 <- percent_1 * 100
+	percent_2 <- percent_2 * 100
+
+	percent_1 <- paste ( "pcoa1 exp.", percent_1, "%", sep = " " )
+	percent_2 <- paste ( "pcoa2 exp.", percent_2, "%", sep = " " )
 
 	# Convert to data-frame:
 	df_pcoa <- data.frame( pcoa1 = pcoa_out$vectors[,1], pcoa2 = pcoa_out$vectors[,2] )
@@ -266,13 +270,13 @@ beta_plot <- function ( df_in, metadata, palette ) {
 #	df_nmds$Daycare_attendance <- as.character(df_nmds$Daycare_attendance)
 
 	# Generate PCoA scatterplot:
-	plot_out <-	ggplot( 
+	plot_pcoa <-	ggplot( 
 				df_pcoa,
-				aes(
+				aes	(
 					x = pcoa1,
 					y = pcoa2,
 					color = Daycare_attendance
-				)
+					)
 				) +
 			geom_point (
 				size = 2
@@ -280,25 +284,29 @@ beta_plot <- function ( df_in, metadata, palette ) {
 			scale_color_brewer(
 				palette = palette
 			) +
-			theme_classic () +
-			labs (
-				x = percent_1,
-				y= percent_2
-			)
+			theme_classic () #+
+#			labs (
+#				x = percent_1,
+#				y= percent_2
+#			)
 
 #	Generate nMDS scatterplot:
 #	plot_nmds <- scatterplot ( df_nmds, "MDS1", "MDS2", "Daycare_attendance", palette)
 
 	# Create legend:
-#	legend <- get_legend(plot_pcoa)
+	legend <- get_legend(plot_pcoa)
 
 	# Merge plots and legend:
-#	plot_out <- cowplot::plot_grid(
-#	plot_pcoa + theme(legend.position="none") + labs( x = percent_1, y= percent_2 ) + coord_cartesian(xlim = c($
+	plot_out <- cowplot::plot_grid( plot_pcoa + 
+			theme(legend.position="none") +
+			labs( x = percent_1, y= percent_2 ) +
+			coord_cartesian(xlim = c(-0.6, 0.6), ylim = c(-0.4, 0.5)) +
+			stat_ellipse(),
 #	plot_nmds + theme(legend.position="none"),
-#	legend,
-#	rel_widths = c(1,0.3),
-#	ncol = 2 )
+		legend,
+		rel_widths = c(1,0.3),
+		ncol = 2
+		)
 
 #	plot(plot_out)
 

@@ -12,41 +12,11 @@ use Modules;
 
 # ---------------------------------------------------------------------------- #
 
-# Script name:	Run.pl
+# Script name:	Run
 # Created by:	Eliot Stanton (estanton@wisc.edu)
 # Created on:	16 September, 2023
-# Modified:	21 September, 2023
+# Modified:	29 October, 2023
 # Description:	Master script for coordinating running EPIC workflow.
-
-# ---------------------------------------------------------------------------- #
-
-# TODO: Add forking to Stats::diversity
-# TODO: Add forking to Stats::abundance
-# TODO: Add flagging within analysis
-
-# TODO: Remove rare taxa from phyloseq
-# TODO: Work on getting Maaslin to find significat data
-#	- Kill norming
-#	- Use a different file
-
-# TODO: Finish implementing subroutine to analyze DAA output -> output sorted
-#       significant results only
-# TODO: Implement figure for metabolic output - bar chart showing lfc for 
-#	significant outputs
-
-#---------------------------------------
-
-# TODO: Add forking for Stats::abundance
-# TODO: Add long opts to this script
-
-# --------------------------------------
-
-# TODO: Backup on Github
-
-# TODO: Implement Slurm job submissions:
-#	- Set up test Slurm environment
-#	- Set up flag for submitting jobs to slurm using sbatch
-#	- Set up tracking jobs for bwa, trimmomatic, and spades
 
 # ---------------------------------------------------------------------------- #
 
@@ -76,6 +46,9 @@ my $flag_classify	= $hash_opts{y};
 $hash_opts{flag_slurm}		= "1" if $flag_slurm;
 $hash_opts{flag_wildcard}	= "1" if $flag_wildcard;
 
+# If $flag_slurm is defined, define $flag_linear and undefine $flag_forked:
+if ( $flag_slurm ) { $flag_linear = "1"; undef $flag_forked; }
+
 # Define and import data into $hash_config:
 my $hash_config = Configuration::unify ( \%hash_opts, "workflow", "config.yaml");
 
@@ -89,6 +62,20 @@ $flag_predict || $flag_assemble ) {
 
 # Print help and exit if $flag_help:
 if ( $flag_help ) { Comms::help ( $hash_config ); exit; }
+
+# Print help and exit if $flag_forked, $flag_linear, and $flag_slurm are all
+# undefined:
+unless ( $flag_forked || $flag_linear || $flag_slurm ) { 
+
+	unless ( $flag_check || $flag_analysis ) {
+
+		Comms::help ( $hash_config ); 
+
+		exit;
+
+	}
+
+}
 
 # Print analysis and exit if $flag_print:
 if ( $flag_print ) { Comms::print_analysis ( $hash_config ); exit }
@@ -159,6 +146,9 @@ if ( $flag_forked ) {
 # If flag_linear is defined:
 elsif ( $flag_linear ) {
 
+	# Check rgi command:
+	Check::command ( $hash_config, "rgi" );
+
 	# Load RGI database if needed:
 	Wrapper::rgi_load ( $hash_config, "wildcard" ) if $flag_predict || $flag_all;
 
@@ -173,19 +163,19 @@ elsif ( $flag_linear ) {
 		Stage::subsample ( $hash_config, $var_name_ID, $var_threads ) if $flag_subsample || $flag_all;
 
 		# Run process stage to trim and filter reads:
-		Stage::process ( $hash_config, $var_name_ID, $var_threads ) if $flag_process || $flag_all;
+		my $var_jobID = Stage::process ( $hash_config, $var_name_ID, $var_threads ) if $flag_process || $flag_all;
 
 		# Run post-process stage to assess read quality:
-		Stage::postprocess ( $hash_config, $var_name_ID, $var_threads ) if $flag_qc || $flag_all;
+		Stage::postprocess ( $hash_config, $var_name_ID, $var_threads, $var_jobID ) if $flag_qc || $flag_all;
 
 		# Run classify stage to profile taxonomic and metabolic diversity:
-		Stage::classify ( $hash_config, $var_name_ID, $var_threads, "maximum" ) if $flag_classify || $flag_all;
+		Stage::classify ( $hash_config, $var_name_ID, $var_threads, "maximum", $var_jobID ) if $flag_classify || $flag_all;
 
 		# Run predict stage to identify ARGs:
-		Stage::predict ( $hash_config, $var_name_ID, $var_threads ) if $flag_predict || $flag_all;
+		Stage::predict ( $hash_config, $var_name_ID, $var_threads, $var_jobID ) if $flag_predict || $flag_all;
 
 		# Run assemble stage to create genome assemblies and annotate them:
-		Stage::assemble ( $hash_config, $var_name_ID, $var_threads, $var_memory ) if $flag_assemble || $flag_all;
+		Stage::assemble ( $hash_config, $var_name_ID, $var_threads, $var_memory, $var_jobID ) if $flag_assemble || $flag_all;
 
 	}
 
@@ -223,7 +213,7 @@ if ( $flag_analysis ) {
 	# Merge individual gene families and path abundance files:
 	Analysis::process_humann ( $hash_config );
 
-	# TODO: Check that merged output files are in place:
+	# Check that merged output files are in place:
 	foreach my $var_term ( keys %{$hash_analysis} ) {
 
 		foreach my $var_tag ( values %{$hash_analysis->{$var_term}} ) {
@@ -243,6 +233,6 @@ if ( $flag_analysis ) {
 	Stats::abundance ( $hash_config );
 
 	# Analyze DAA output:
-	Stats::process ( $hash_config );
+	Stats::process_DAA ( $hash_config );
 
 }

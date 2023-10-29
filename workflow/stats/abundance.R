@@ -66,8 +66,6 @@ formula <- "Daycare_attendance + Income"
 # Create phyloseq objects for original and stratified data:
 physeq <- create_phyloseq ( df_in, df_metadata )
 
-#print ( physeq@tax_table )
-
 # Run differential analysis using ANCOMBC2:
 ancombc2_out <- test_ancombc2 ( physeq, formula, "Species" )
 
@@ -78,12 +76,14 @@ ancombc2_out <- test_ancombc2 ( physeq, formula, "Species" )
 maaslin2_out <- test_maaslin2 ( df_in, df_metadata, "Daycare_attendance,Income", dir_out )
 
 # Add output to list_out
-list_out <- list ( ancombc2_out$res ) #, aldex2_out )
+list_out <- list ( ancombc2_out ) #, aldex2_out )
 
 # Save data to files -----------------------------------------------------------
 
 # Print list_out:
-print (list_out)
+#print (list_out)
+
+#summary(warnings())
 
 # Save list_out to file_out:
 save_text ( file_out, list_out )

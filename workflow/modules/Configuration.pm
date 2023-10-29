@@ -149,9 +149,9 @@ sub default {
 	resources=>{
 		slurm=>{
 			bwa=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'4:00:00',
+				cpus=>'8',
+				memory=>'32GB'
 			},
 			fastqc=>{
 				time=>'1:00:00',
@@ -159,24 +159,24 @@ sub default {
 				memory=>'4GB'
 			},
 			humann=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'24:00:00',
+				cpus=>'16',
+				memory=>'128GB'
 			},
 			kraken2=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'12:00:00',
+				cpus=>'8',
+				memory=>'24GB'
 			},
 			metaphlan=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'4:00:00',
+				cpus=>'16',
+				memory=>'24GB'
 			},
 			prokka=>{
-				time=>'1:00:00',
+				time=>'24:00:00',
 				cpus=>'4',
-				memory=>'4GB'
+				memory=>'8GB'
 			},
 			quast=>{
 				time=>'1:00:00',
@@ -184,19 +184,19 @@ sub default {
 				memory=>'4GB'
 			},
 			'r-base'=>{
-				time=>'1:00:00',
+				time=>'4:00:00',
 				cpus=>'4',
-				memory=>'4GB'
+				memory=>'16GB'
 			},
 			rgi=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'24:00:00',
+				cpus=>'16',
+				memory=>'24GB'
 			},
 			samtools=>{
-				time=>'1:00:00',
+				time=>'4:00:00',
 				cpus=>'4',
-				memory=>'4GB'
+				memory=>'16GB'
 			},
 			seqtk=>{
 				time=>'1:00:00',
@@ -204,14 +204,14 @@ sub default {
 				memory=>'4GB'
 			},		
 			spades=>{
-				time=>'1:00:00',
-				cpus=>'4',
-				memory=>'4GB'
+				time=>'24:00:00',
+				cpus=>'16',
+				memory=>'88GB'
 			},
 			trimmomatic=>{
-				time=>'1:00:00',
+				time=>'4:00:00',
 				cpus=>'4',
-				memory=>'4GB'
+				memory=>'16GB'
 			}
 		},
 		threads=>'120',
@@ -590,13 +590,14 @@ sub filenames {
 		$hash_name_ID->{file_merged_fastq}	= "$dir_humann/$var_name_ID\_merged.fastq.gz";
 		$hash_name_ID->{file_humann_gene}	= "$dir_humann/$var_name_ID\_merged_genefamilies.tsv";
 		$hash_name_ID->{file_humann_path}	= "$dir_humann/$var_name_ID\_merged_pathabundance.tsv";
-		$hash_name_ID->{file_humann_gene_cond}	= "$dir_humann/$var_name_ID\_merged_genefamilies_cond.tsv";
-		$hash_name_ID->{file_humann_path_cond}	= "$dir_humann/$var_name_ID\_merged_pathabundance_cond.tsv";
-		$hash_name_ID->{file_humann_regroup}	= "$dir_humann/$var_name_ID\_merged_genefamilies_regroup.tsv";
-		$hash_name_ID->{file_humann_gene_relab}	= "$dir_humann/$var_name_ID\_merged_genefamilies_relab.tsv";
-		$hash_name_ID->{file_humann_gene_cpm}	= "$dir_humann/$var_name_ID\_merged_genefamilies_cpm.tsv";
-		$hash_name_ID->{file_humann_path_relab} = "$dir_humann/$var_name_ID\_merged_pathabundance_relab.tsv";
-		$hash_name_ID->{file_humann_path_cpm}	= "$dir_humann/$var_name_ID\_merged_pathabundance_cpm.tsv";
+		$hash_name_ID->{file_humann_gene_rename}= "$dir_humann/$var_name_ID\_genefamilies_rename.tsv";
+		$hash_name_ID->{file_humann_gene_cond}	= "$dir_humann/$var_name_ID\_genefamilies_cond.tsv";
+		$hash_name_ID->{file_humann_path_cond}	= "$dir_humann/$var_name_ID\_pathabundance_cond.tsv";
+		$hash_name_ID->{file_humann_regroup}	= "$dir_humann/$var_name_ID\_genefamilies_regroup.tsv";
+		$hash_name_ID->{file_humann_gene_relab}	= "$dir_humann/$var_name_ID\_genefamilies_relab.tsv";
+		$hash_name_ID->{file_humann_gene_cpm}	= "$dir_humann/$var_name_ID\_genefamilies_cpm.tsv";
+		$hash_name_ID->{file_humann_path_relab} = "$dir_humann/$var_name_ID\_pathabundance_relab.tsv";
+		$hash_name_ID->{file_humann_path_cpm}	= "$dir_humann/$var_name_ID\_pathabundance_cpm.tsv";
 
 		# Add Kraken2 files to $hash_name_ID:
 		$hash_name_ID->{file_kraken2_out}	= "$dir_kraken2/$var_name_ID\_kraken2_out.txt";
@@ -655,6 +656,7 @@ sub filenames {
 
 	# ------------------------------
 
+	# Create an array with all terms:
 	my @array_analysis = ( "metaphlan_tax", "rgi_ref_seq", "rgi_ARO_term", "rgi_AMR_fam",
 	"rgi_drug_class", "rgi_res_mech", "humann_gene_families", "humann_path_abundance" );
 
@@ -688,6 +690,12 @@ sub filenames {
 
 		# Define DAA output files:
 		$hash_analysis->{$var_term}->{ "file_DAA" }		= "$dir_analysis/DAA_$var_term\.tsv";
+
+		# Define processed DAA output files:
+		$hash_analysis->{$var_term}->{ "file_DAA_processed" }	= "$dir_analysis/DAA_$var_term\_processed\.tsv";
+
+		# Define DAA waterfall output plot:
+		$hash_analysis->{$var_term}->{ "file_DAA_pdf" }		= "$dir_analysis/DAA_$var_term\_processed\.pdf";
 
 	}
 

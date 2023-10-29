@@ -104,18 +104,18 @@ for ( i in list_indexes ) {
 # Plot boxplots for indexes:
 plot_out <-	cowplot::plot_grid (
 			list_box_plots[[1]] +
-				coord_cartesian( ylim = c(0, 1000) ),
+				coord_cartesian( ylim = c(1, 400) ),
 			list_box_plots[[2]] +
-				coord_cartesian( ylim = c(0, 100) ),
+				coord_cartesian( ylim = c(1, 40) ),
 			list_box_plots[[3]] +
-				coord_cartesian( ylim = c(0, 10) ),
+				coord_cartesian( ylim = c(1, 4.5) ),
 			ncol = 1
 		)
 
 # Save data to files -----------------------------------------------------------
 
 # Print list_alpha:
-print (list_alpha)
+#print (list_alpha)
 
 # Save list_alpha to file_alpha
 save_text ( file_out, list_alpha )

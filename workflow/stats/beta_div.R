@@ -11,6 +11,7 @@ source( "workflow/stats/functions2.R" )
 
 # Define required packages:
 if ( !require(ggplot2) ) { install.packages("ggplot2") }
+if ( !require(cowplot) ) { install.packages("cowplot") }
 #if ( !require(vegan) ) { install.packages("vegan") }
 
 # Define arguments from command line:
@@ -75,10 +76,10 @@ plot_out <- beta_plot ( dist_bray, df_metadata, "Pastel1" )
 # Save data to files -----------------------------------------------------------
 
 # Print list_beta:
-print (list_beta)
+#print (list_beta)
 
 # Save list_beta to file_beta
 save_text ( file_out, list_beta )
 
 # Save plot_beta to file_plot_beta
-save_pdf ( file_plot, plot_out, 7, 7 )
+save_pdf ( file_plot, plot_out, 10, 7 )

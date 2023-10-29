@@ -762,8 +762,8 @@ sub wrapper {
 
 	# Define string for wrapper:
 	my $var_string1 .= "#!/usr/bin/bash\n\n";
+	$var_string1 .= "#SBATCH --partition=local\n";
 	$var_string1 .= "#SBATCH --time=\"$var_time\"\n" if $var_time;
-	$var_string1 .= "#SBATCH --ntasks=\"$var_threads\"\n" if $var_threads;
 	$var_string1 .= "#SBATCH --mem=\"$var_memory\"\n" if $var_memory;
 	$var_string1 .= "CONTAINER_DIR=\"$dir_container\"\n";
 	$var_string1 .= "IMAGE_NAME=\"$file_container\"";

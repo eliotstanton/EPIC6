@@ -42,14 +42,15 @@ use warnings;
 sub run {
 
 	# Arguments:
-	my ( $hash_config, $var_name_ID, $var_command, $var_string, $dir_out,
-	$file_log ) = @_;
+	my ( $hash_config, $var_name_ID, $var_command, $var_string1, $dir_out,
+	$file_log, $var_jobID ) = @_;
 
 	# File paths:
 	my $dir_logs	= $hash_config->{directories}->{logs};
 
 	# Variables:
 	my $var_stats	= $hash_config->{variables}->{stats};
+	my $flag_slurm	= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -63,11 +64,45 @@ sub run {
 	# Print container information:
 	Comms::container_info ( $hash_config, $var_command, $file_log );
 
-	# Print command:
-	Comms::print_command ( $var_string, $file_log );
+	# Run command when SLURM isn't being used:
+	unless ( $flag_slurm ) {
 
-	# Run command:
-	$var_return = system ( "$var_stats $var_string &>> $file_log" );
+		# Print command:
+		Comms::print_command ( $var_string1, $file_log );
+
+		# Run command:
+		$var_return = system ( "$var_stats $var_string1 &>> $file_log" );
+
+	}
+
+	# Run command when SLURM if being used:
+	if ( $flag_slurm ) {
+
+		unless ( $var_jobID ) {
+
+			$var_jobID = $hash_config->{jobID}->{$var_name_ID}->{bwa};
+			$var_jobID = $hash_config->{jobID}->{$var_name_ID}->{trimmomatic} if $var_command eq "bwa";
+			$var_jobID = $hash_config->{jobID}->{$var_name_ID}->{spades} if $var_command eq "quast";
+			$var_jobID = $hash_config->{jobID}->{$var_name_ID}->{spades} if $var_command eq "prokka";
+
+		}
+
+		my $var_string2 = "sbatch \\\n";
+		$var_string2 .= "	--output $file_log \\\n";
+		$var_string2 .= "	--job-name=$var_name_ID\_$var_command \\\n";
+		$var_string2 .= "	--dependency=afterok:$var_jobID \\\n" if $var_jobID;
+		$var_string2 .= "	--wrap \"$var_string1\"";
+
+		# Print command:
+		Comms::print_command ( $var_string2, $file_log );
+
+		# Run command:
+		$var_return = `$var_string2`;
+
+		# Extract jobID:
+		$var_return = (split " ", $var_return)[-1];
+
+	}
 
 	# ------------------------------
 
@@ -92,7 +127,7 @@ sub bwa {
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_trimmed_R1, $file_trimmed_R2,
 	$file_concatenated, $file_bam, $file_filtered_R1, $file_filtered_R2,
-	$file_log, $var_threads ) = @_;
+	$file_log, $var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 	my $dir_logs	= $hash_config->{directories}->{logs};
@@ -101,6 +136,7 @@ sub bwa {
 	my $dir_out	= $hash_config->{subdirectories}->{bwa};
 
 	# Variables:
+	my $flag_slurm	= $hash_config->{opts}->{flag_slurm};
 	my $var_stats	= $hash_config->{variables}->{stats};
 	my $var_return;
 
@@ -126,9 +162,55 @@ sub bwa {
 	$var_string3 .= "	-2 $file_filtered_R2 \\\n";
 	$var_string3 .= "	$file_bam";
 
-	# Check if $file_filtered_R1 $file_filtered_R2 is present and has
-	# non-zero size:
-	if ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+	# Unless both output files exist and have non-zero size:
+	unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "bwa",
+			"$var_string1 2>> $file_log | $var_string2", $dir_out, $file_log, $var_jobID );
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "samtools",
+			"$var_string3", $dir_out, $file_log, $var_return );			
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_trimmed_R1 and $file_trimmed_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_trimmed_R1 && -s $file_trimmed_R2 ) {
+
+				Comms::file_missing ( $file_trimmed_R1 ) unless -e $file_trimmed_R1;
+				Comms::file_missing ( $file_trimmed_R2 ) unless -e $file_trimmed_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "bwa",
+				"$var_string1 2>> $file_log | $var_string2", $dir_out, $file_log );
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "bwa",
+				"$var_string3", $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if both files exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_filtered_R1 );
 		Comms::file_present ( $file_filtered_R2 );
@@ -137,56 +219,10 @@ sub bwa {
 
 	}
 
-	else {
-
-		# Check that $file_trimmed_R1 and $file_trimmed_R2 are present and
-		# have non-zero sizes:
-		unless ( -s $file_trimmed_R1 && -s $file_trimmed_R2 ) {
-
-			Comms::file_missing ( $file_trimmed_R1 ) unless -e $file_trimmed_R1;
-			Comms::file_missing ( $file_trimmed_R2 ) unless -e $file_trimmed_R2;
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Check that output directory is present:
-			system ( "mkdir -p $dir_out" ) unless -d "$dir_out";
-
-			# Check that logs directory is present:
-			system ( "mkdir -p $dir_logs/$var_name_ID" ) unless -d "$dir_logs/$var_name_ID";
-
-			# Print container information:
-			Comms::container_info ( $hash_config, "bwa", $file_log );
-
-			# Print command:
-			Comms::print_command ( "$var_string1 2>> $file_log | $var_string2", $file_log );
-
-			# Run command:
-			$var_return = system ( "$var_stats $var_string1 2>> $file_log | $var_string2 &>> $file_log" );
-
-			# Print container information:
-			Comms::container_info ( $hash_config, "samtools", $file_log );
-
-			# Print command:
-			Comms::print_command ( $var_string3, $file_log );
-
-			# Run command:
-			$var_return = system ( "$var_stats $var_string3 &>> $file_log" )
-
-			# Remove $file_bam:
-#			system ( "rm $dir_out/$file_bam" ) if -e "$dir_out/$file_bam";			
-
-		}
-
-	}
-
 	# ------------------------------
 
 	# Handle error code from bwa:
-	if ( $var_return != 0 ) {
+	if ( $var_return != 0 && !$flag_slurm ) {
 
 		Comms::exit_code ( $file_log );
 
@@ -213,7 +249,7 @@ sub fastqc {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_fastq_R1, $file_fastq_R2,
-	$file_log, $var_threads ) = @_;
+	$file_log, $var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 
@@ -221,6 +257,7 @@ sub fastqc {
 	my $dir_out	= $hash_config->{subdirectories}->{fastqc};
 
 	# Variables:
+	my $flag_slurm	= $hash_config->{opts}->{flag_slurm};
 	my $file_out_R1	= ( split /\//, $file_fastq_R1 )[-1];
 	my $file_out_R2 = ( split /\//, $file_fastq_R2 )[-1];
 	$file_out_R1	= ( split /\./, $file_out_R1 )[0];
@@ -238,8 +275,48 @@ sub fastqc {
 	$var_string1 .= "	--threads $var_threads \\\n";
 	$var_string1 .= "	$file_fastq_R1 $file_fastq_R2";
 
-	# Check if $file_out is present and has non-zero size:
-	if ( -s $file_out_R1 && -s $file_out_R2 ) {
+	# Unless both output files exist and have non-zero size:
+	unless ( -s $file_out_R1 && -s $file_out_R2 ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "fastqc",
+			$var_string1, $dir_out, $file_log, $var_jobID );
+
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_fastq_R1 and $file_fastq_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_fastq_R1 && -s $file_fastq_R2 ) {
+
+				Comms::file_missing ( $file_fastq_R1 ) unless -e $file_fastq_R1;
+				Comms::file_missing ( $file_fastq_R2 ) unless -e $file_fastq_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "fastqc",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if both files exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_out_R1 );
 		Comms::file_present ( $file_out_R2 );
@@ -248,33 +325,10 @@ sub fastqc {
 
 	}
 
-	else {
-
-		# Check that $file_fastq_R1 and $file_fastq_R2 are present and
-		# have non-zero sizes:
-		unless ( -s $file_fastq_R1 && -s $file_fastq_R2 ) {
-
-			Comms::file_missing ( $file_fastq_R1 ) unless -e $file_fastq_R1;
-			Comms::file_missing ( $file_fastq_R2 ) unless -e $file_fastq_R2;
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "fastqc",
-			"$var_string1", $dir_out, $file_log );
-
-		}
-
-	}
-
 	# ------------------------------
 	
 	# Handle error exits codes by printing message to user:
-	if ( $var_return != 0 ) { 
+	if ( $var_return != 0 && !$flag_slurm ) { 
 
 		Comms::exit_code ( $file_log );
 		system ( "rm $file_out_R1" ) if -e $file_out_R1;
@@ -328,7 +382,7 @@ sub humann {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_merged_fastq, $file_humann,
-	$file_metaphlan, $file_log, $var_threads, $var_memory ) = @_;
+	$file_metaphlan, $file_log, $var_threads, $var_memory, $var_jobID ) = @_;
 
 	# Data structures:
 
@@ -342,6 +396,7 @@ sub humann {
 	my $dir_uniref_db	= $hash_config->{databases}->{uniref};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_humann		= $hash_config->{versions}->{humann};
 	my $var_metaphlan	= $hash_config->{versions}->{metaphlan};
 	my $var_return;
@@ -374,8 +429,47 @@ sub humann {
 	$var_string2 .= "	--taxonomic-profile $file_metaphlan \\\n";
 	$var_string2 .= "	--remove-temp-output";
 
-	# Check if $file_humann is present and has non-zero size:
-	if ( -s $file_humann ) {
+	# Unless output file exists and has non-zero size:
+	unless ( -s $file_humann ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "humann",
+			$var_string2, $dir_out, $file_log, $var_jobID );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_merged_fastq and $file_metaphlan are
+			# present and have non-zero size:
+			unless ( -s $file_merged_fastq && -s $file_metaphlan ) {
+
+				Comms::file_missing ( $file_merged_fastq ) unless -e $file_merged_fastq;
+				Comms::file_missing ( $file_metaphlan ) unless -e $file_metaphlan;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "humann",
+				$var_string2, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if output file exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_humann );
 
@@ -383,33 +477,10 @@ sub humann {
 
 	}
 
-	else {
-
-		# Check that $file_merged_fastq and $file_metaphlan are
-		# present and has non-zero size:
-		unless ( -s $file_merged_fastq & -s $file_metaphlan ) {
-
-			Comms::file_missing ( $file_merged_fastq );
-			Comms::file_missing ( $file_metaphlan );
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "humann",
-			"$var_string2", $dir_out, $file_log );
-
-		}
-
-	}
-
 	# ------------------------------
 	
 	# Handle error code from humann:
-	if ( $var_return != 0 ) {
+	if ( $var_return != 0 && !$flag_slurm ) {
 
 		Comms::exit_code ( $file_log );
 
@@ -435,9 +506,7 @@ sub kraken2 {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_filtered_R1, $file_filtered_R2,
-	$file_kraken2_out, $file_kraken2_report, $file_log, $var_threads ) = @_;
-
-	# Data structures:
+	$file_kraken2_out, $file_kraken2_report, $file_log, $var_threads, $var_jobID ) = @_;
 
 	# File paths:
 #	my $dir_logs		= $hash_config->{directories}->{logs};
@@ -445,6 +514,7 @@ sub kraken2 {
 	my $dir_kraken2_db	= $hash_config->{databases}->{kraken2};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -461,37 +531,52 @@ sub kraken2 {
 	$var_string1 .= "	$file_filtered_R1 \\\n";
 	$var_string1 .= "	$file_filtered_R2";
 
-	# Check if $file_kraken2_out and $file_kraken2_report are present and
-	# have non-zero size:
-	if ( -s $file_kraken2_out && -s $file_kraken2_report ) {
+	# Unless both output files exist and have non-zero size:
+	unless ( -s $file_kraken2_report && -s $file_kraken2_out ) {
 
-		Comms::file_present ( $file_kraken2_out );
-		Comms::file_present ( $file_kraken2_report );
-
-		$var_return = 0;
-
-	}
-
-	else {
-
-		# Check that $file_filtered_R1 and $file_filtered_R2 are present and
-		# have non-zero sizes:
-		unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
-
-			Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
-			Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
-
-			$var_return = 1;
-
-		}
-
-		else {
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
 
 			# Run command:
 			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "kraken2",
-			"$var_string1", $dir_out, $file_log );
+			$var_string1, $dir_out, $file_log, $var_jobID );
 
 		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_filtered_R1 and $file_filtered_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+
+				Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
+				Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "kraken2",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if both files exists print message to user and move on:
+	else {
+
+		Comms::file_present ( $file_filtered_R1 );
+		Comms::file_present ( $file_filtered_R2 );
+
+		$var_return = 0;
 
 	}
 
@@ -513,7 +598,7 @@ sub metaphlan {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_filtered_R1, $file_filtered_R2,
-	$file_bowtie, $file_metaphlan, $file_log, $var_threads ) = @_;
+	$file_bowtie, $file_metaphlan, $file_log, $var_threads, $var_jobID ) = @_;
 
 	# File paths:
 	my $dir_logs		= $hash_config->{directories}->{logs};
@@ -521,6 +606,7 @@ sub metaphlan {
 	my $dir_metaphlan_db	= $hash_config->{databases}->{metaphlan};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_metaphlan	= $hash_config->{versions}->{metaphlan};
 	my $var_return;
 
@@ -555,8 +641,47 @@ sub metaphlan {
 	$var_string1 .= "	--nproc $var_threads \\\n";
 	$var_string1 .= "	-o $file_metaphlan";
 
-	# Check if $file_metaphlan is present and has non-zero size:
-	if ( -s $file_metaphlan ) {
+	# Unless both output file exists and has non-zero size:
+	unless ( -s $file_metaphlan ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "metaphlan",
+			$var_string1, $dir_out, $file_log, $var_jobID );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_filtered_R1 and $file_filtered_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+
+				Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
+				Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "metaphlan",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if file exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_metaphlan );
 
@@ -564,33 +689,10 @@ sub metaphlan {
 
 	}
 
-	else {
-
-		# Check that $file_filtered_R1 and $file_filtered_R2 are present and
-		# have non-zero sizes:
-		unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
-
-			Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
-			Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "metaphlan",
-			"$var_string1", $dir_out, $file_log );
-
-		}
-
-	}
-
 	# ------------------------------
 
 	# Handle error code from metaphlan:
-	if ( $var_return != 0 ) {
+	if ( $var_return != 0 && !$flag_slurm ) {
 
 		Comms::exit_code ( $file_log );
 
@@ -616,16 +718,27 @@ sub quast {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_in, $file_quast, 
-	$file_log, $var_threads ) = @_;
+	$file_log, $var_threads, $var_jobID ) = @_;
 
 	# File paths:
-	my $dir_out	= $hash_config->{subdirectories}->{quast};
-	$dir_out	= "$dir_out/$var_name_ID";
+	my $dir_out		= $hash_config->{subdirectories}->{quast};
+	$dir_out		= "$dir_out/$var_name_ID";
+#	my $file_contigs	= $hash_config->{filenames}->{$var_name_ID}->{file_contigs};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
+#	my $var_min_contig	= $hash_config->{variables}->{min_contig};
 	my $var_return;
 
 	# ------------------------------
+
+	# If $file_in is missing create it:
+#	unless ( -e $file_in ) {
+
+#		Edit::trim_contigs ( $hash_config, $file_contigs, $file_in,
+#		$var_min_contig, $var_name_ID );
+
+#	}
 
 	# Define command for running quast:
 	my $var_string1 = "quast \\\n";
@@ -635,33 +748,50 @@ sub quast {
 #	$var_string1 .= "	--max-ref-number 0 \\\n";
 	$var_string1 .= "	$file_in";
 
-	# Check if $file_quast is present and has non-zero size:
-	if ( -s $file_quast ) {
+	# Unless both output file exists and has non-zero size:
+	unless ( -s $file_quast ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "quast",
+			$var_string1, $dir_out, $file_log, $var_jobID );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_in is present and has non-zero size:
+			# present and have non-zero size:
+			unless ( -s $file_in ) {
+
+				Comms::file_missing ( $file_in );
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "quast",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if file exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_quast );
 
 		$var_return = 0;
-
-	}
-
-	else {
-
-		# Check that $file_in is present and has non-zero sizes:
-		unless ( -s $file_in ) {
-
-			Comms::file_missing ( $file_in );
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "quast",
-			"$var_string1", $dir_out, $file_log );
-
-		}
 
 	}
 
@@ -683,18 +813,29 @@ sub prokka {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_spades, $file_prokka, $file_log,
-	$var_threads ) = @_;
+	$var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 
 	# File paths:
-	my $dir_out	= $hash_config->{subdirectories}->{prokka};
-	$dir_out	= "$dir_out/$var_name_ID";
+	my $dir_out		= $hash_config->{subdirectories}->{prokka};
+	$dir_out		= "$dir_out/$var_name_ID";
+#	my $file_contigs	= $hash_config->{filenames}->{$var_name_ID}->{file_contigs};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
+#	my $var_min_contig	= $hash_config->{variables}->{min_contig};
 	my $var_return;
 
 	# ------------------------------
+
+	 # If $file_spades is missing create it:
+#	 unless ( -e $file_spades ) {
+
+#		Edit::trim_contigs ( $hash_config, $file_contigs, $file_spades,
+#		$var_min_contig, $var_name_ID );
+
+#	}
 
 	# Define command for running prokka:
 	my $var_string1 = "prokka \\\n";
@@ -706,33 +847,49 @@ sub prokka {
 	$var_string1 .= "	--cpus $var_threads \\\n";
 	$var_string1 .= "	$file_spades";
 
-	# Check if $file_out is present and has non-zero size:
-	if ( -s $file_prokka ) {
+	# Unless output file exists and has non-zero size:
+	unless ( -s $file_prokka ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "prokka",
+			$var_string1, $dir_out, $file_log, $var_jobID );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_spades is present and has non-zero size:
+			unless ( -s $file_spades ) {
+
+				Comms::file_missing ( $file_spades );
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "prokka",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if file exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_prokka );
 
 		$var_return = 0;
-
-	}
-
-	else {
-
-		# Check that $file_spades is present and has non-zero sizes:
-		unless ( -s $file_spades ) {
-
-			Comms::file_missing ( $file_spades );
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "prokka",
-			"$var_string1", $dir_out, $file_log );
-
-		}
 
 	}
 
@@ -831,7 +988,7 @@ sub rgi_bwt {
 
 	# Arguments:
 	my ( $hash_config, $var_name_ID, $file_fastq_R1, $file_fastq_R2,
-	$file_rgi, $file_log, $var_threads ) = @_;
+	$file_rgi, $file_log, $var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 
@@ -840,6 +997,7 @@ sub rgi_bwt {
 	$dir_out		= "$dir_out/$var_name_ID";
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $flag_wildcard	= $hash_config->{opts}->{flag_wildcard};
 	my $var_return;
 
@@ -862,35 +1020,51 @@ sub rgi_bwt {
 	# Add file ending to $file_rgi for skipping completed samples:
 	$file_rgi .= ".allele_mapping_data.json";
 
-	# Check if $file_out is present and has non-zero size:
-	if ( -s $file_rgi ) {
+	# Unless output file exists and has non-zero size:
+	unless ( -s $file_rgi ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
+
+			# Run command:
+			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "rgi",
+			$var_string1, $dir_out, $file_log, $var_jobID );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_fastq_R1 and $file_fastq_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_fastq_R1 && -s $file_fastq_R2 ) {
+
+				Comms::file_missing ( $file_fastq_R1 ) unless -e $file_fastq_R1;
+				Comms::file_missing ( $file_fastq_R2 ) unless -e $file_fastq_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "rgi",
+				$var_string1, $dir_out, $file_log );
+
+			}
+
+		}
+
+	}
+
+	# Otherise if file exists print message to user and move on:
+	else {
 
 		Comms::file_present ( $file_rgi );
 
 		$var_return = 0;
-
-	}
-
-	else {
-
-		# Check that $file_fastq_R1 and $file_fastq_R2 are present and
-		# have non-zero sizes:
-		unless ( -s $file_fastq_R1 && -s $file_fastq_R2 ) {
-
-			Comms::file_missing ( $file_fastq_R1 ) unless -e $file_fastq_R1;
-			Comms::file_missing ( $file_fastq_R2 ) unless -e $file_fastq_R2;
-
-			$var_return = 1;
-
-		}
-
-		else {
-
-			# Run command:
-			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "rgi",
-			"$var_string1", $dir_out, $file_log );
-
-		}
 
 	}
 
@@ -922,6 +1096,7 @@ sub seqtk {
 	my $dir_out	= $hash_config->{subdirectories}->{seqtk};
 
 	# Variables:
+	my $flag_slurm	= $hash_config->{opts}->{flag_slurm};
 	my $var_sub	= $hash_config->{variables}->{sub};
 	my $var_stats	= $hash_config->{variables}->{stats};
 	my $var_return;
@@ -946,27 +1121,62 @@ sub seqtk {
 
 	}
 
+	# If $file_out is absent:
 	else {
 
-		# Check that $file_in is present and has non-zero size:
-		unless ( -s $file_in ) {
+		# Check that output directory is present:
+		system ( "mkdir -p $dir_out" ) unless -d "$dir_out";
 
-			Comms::file_missing ( $file_in );
+		# Check that logs directory is present:
+		system ( "mkdir -p $dir_logs/$var_name_ID" ) unless -d "$dir_logs/$var_name_ID";
 
-			$var_return = 1;
+		# Print container information:
+		Comms::container_info ( $hash_config, "seqtk", $file_log );
+
+
+		# If $flag_slurm is defined submit to SLURM:
+		if ( $flag_slurm ) {
+
+			# Remove .gz from $file_out:
+			my @array_temp	= split ( /\./, $file_out);
+			pop @array_temp;
+			$file_out	= join ".", @array_temp;
+
+			# Define string for sbatch:
+			my $var_string3 = "sbatch \\\n";
+			$var_string3 .= "	--output=$file_out \\\n";
+			$var_string3 .= "	--error=$file_log \\\n";
+			$var_string3 .= "	--job-name=$var_name_ID\_seqtk \\\n";
+			$var_string3 .= "	$var_string1";
+
+			# Print command for subsampling:
+			Comms::print_command ( "$var_string3" );
+
+			# Run command for subsampling:
+			$var_return = `$var_string3`;
+
+			# Extract jobID:
+			$var_return = (split " ", $var_return)[-1];
+#			print "$var_return\n";
+
+			# Define string for compression:
+			my $var_string4 = "sbatch \\\n";
+			$var_string4 .= "	--dependency=afterok:$var_return \\\n";
+			$var_string4 .= "	--job-name=$var_name_ID\_pigz \\\n";
+			$var_string4 .= "	--wrap=\"pigz \\\n";
+			$var_string4 .= "	--processes $var_threads \\\n";
+			$var_string4 .= "	--fast \\\n";
+			$var_string4 .= "	$file_out\"";
+
+			# Print command for compression
+			Comms::print_command ( $var_string4 );
+
+			# Run comand for compression:
+			$var_return	= system ( $var_string4 );
 
 		}
 
 		else {
-
-			# Check that output directory is present:
-			system ( "mkdir -p $dir_out" ) unless -d "$dir_out";
-
-			# Check that logs directory is present:
-			system ( "mkdir -p $dir_logs/$var_name_ID" ) unless -d "$dir_logs/$var_name_ID";
-
-			# Print container information:
-			Comms::container_info ( $hash_config, "seqtk", $file_log );
 
 			# Print command:
 			Comms::print_command ( "$var_string1 2>> $file_log | $var_string2", $file_log );
@@ -1004,6 +1214,7 @@ sub spades {
 	my $dir_out	= $hash_config->{subdirectories}->{spades};
 
 	# Variables:
+	my $flag_slurm	= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -1018,32 +1229,71 @@ sub spades {
 	$var_string1 .= "	--memory $var_memory";
 
 	# Check if $file_out is present and has non-zero size:
-	if ( -s $file_spades ) {
+#	if ( -s $file_spades ) {
 
-		Comms::file_present ( $file_spades );
+#		Comms::file_present ( $file_spades );
 
-		$var_return = 0;
+#		$var_return = 0;
 
-	}
+#	}
 
-	else {
+#	else {
 
 		# Check that $file_filtered_R1 and $file_filtered_R2 are present and
 		# have non-zero sizes:
-		unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+#		unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
 
-			Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
-			Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
+#			Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
+#			Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
 
-			$var_return = 1;
+#			$var_return = 1;
 
-		}
+#		}
 
-		else {
+#		else {
+
+			# Run command:
+#			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "spades",
+#			"$var_string1", $dir_out, $file_log );
+
+#		}
+
+#	}
+
+	# Unless output file exists and havs non-zero size:
+	unless ( -s $file_spades ) {
+
+		# If $flag_slurm is defined submit jobs to SLURM:
+		if ( $flag_slurm ) {
 
 			# Run command:
 			$var_return = Wrapper::run ( $hash_config, $var_name_ID, "spades",
 			"$var_string1", $dir_out, $file_log );
+
+		}
+
+		# Otherwise run jobs:
+		else {
+
+			# Check that $file_trimmed_R1 and $file_trimmed_R2 are
+			# present and have non-zero size:
+			unless ( -s $file_filtered_R1 && -s $file_filtered_R2 ) {
+
+				Comms::file_missing ( $file_filtered_R1 ) unless -e $file_filtered_R1;
+				Comms::file_missing ( $file_filtered_R2 ) unless -e $file_filtered_R2;
+
+				$var_return = 1;
+
+			}
+
+			# If input file are present run commands:
+			else {
+
+				# Run command:
+				$var_return = Wrapper::run ( $hash_config, $var_name_ID, "spades",
+				$var_string1, $dir_out, $file_log );
+
+			}
 
 		}
 
@@ -1076,6 +1326,7 @@ sub trimmomatic {
 	my $dir_out		= $hash_config->{subdirectories}->{trimmomatic};	
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_adapter		= $hash_config->{variables}->{adapter};
 	my $var_leading		= $hash_config->{variables}->{leading};
 	my $var_trailing	= $hash_config->{variables}->{trailing};
@@ -1137,7 +1388,7 @@ sub trimmomatic {
 	# ------------------------------
 
 	# Handle error code from trimmomatic:
-	if ( $var_return != 0 ) {
+	if ( $var_return != 0 && !$flag_slurm) {
 
 		Comms::exit_code ( $file_log );
 

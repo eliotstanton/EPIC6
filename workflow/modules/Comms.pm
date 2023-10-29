@@ -9,7 +9,7 @@ use Term::ANSIColor qw(:constants);
 # Module name:	Comms
 # Created by:	Eliot Stanton (estanton@wisc.edu)
 # Created on:	08 September, 2023
-# Modified:	16 September, 2023
+# Modified:	09 October, 2023
 # Description:	Subroutine for printing various messages to stdout and to log
 #		files.
 
@@ -283,24 +283,24 @@ sub help {
 	# Define help message:
 	my $var_string1	= "EPIC workflow\n"; 
 	$var_string1 .= "  Run [OPTIONS]\n";
-	$var_string1 .= "	--help -h, Print this help\n";
-	$var_string1 .= "	--print_analysis -i, Print Analysis file structure\n";
-	$var_string1 .= "	--check -c, Run complete check\n";
-	$var_string1 .= "	--forked -f, Forked mode (default)\n";
-	$var_string1 .= "	--linear -l, Linear mode\n";
-	$var_string1 .= "	--samples -s, Sample IDs to run (list or CSV)\n";
-	$var_string1 .= "	--rgi_card -r, RGI CARD database (default)\n";
-	$var_string1 .= "	--rgi_wildcard -w, RGI WildCARD database\n";
-	$var_string1 .= "	--slurm -u, Submit Slurm jobs (under development)\n";
-	$var_string1 .= "	--analysis -a, Run end-stage analysis\n\n";
+	$var_string1 .= "	-h, Print this help\n";
+	$var_string1 .= "	-i, Print Analysis file structure\n";
+	$var_string1 .= "	-c, Run complete check\n";
+	$var_string1 .= "	-f, Forked mode (default)\n";
+	$var_string1 .= "	-l, Linear mode\n";
+	$var_string1 .= "	-s, Sample IDs to run (list or CSV)\n";
+	$var_string1 .= "	-r, RGI CARD database (default)\n";
+	$var_string1 .= "	-w, RGI WildCARD database\n";
+	$var_string1 .= "	-u, Submit Slurm jobs (under development)\n";
+	$var_string1 .= "	-a, Run end-stage analysis\n\n";
 
 	$var_string1 .= "    Individual stages:\n";
-	$var_string1 .= "	--subsample -b, Subsample original reads\n";
-	$var_string1 .= "	--process -p, trim and filter reads\n";
-	$var_string1 .= "	--qc -q, perform quality control on reads\n";
-	$var_string1 .= "	--classify -y, perform taxonomic and metabolic profiling\n";
-	$var_string1 .= "	--predict -e, perform ARG prediction\n";
-	$var_string1 .= "	--assemble -m, perform assembly and annotation\n";
+	$var_string1 .= "	-b, Subsample original reads\n";
+	$var_string1 .= "	-p, trim and filter reads\n";
+	$var_string1 .= "	-q, perform quality control on reads\n";
+	$var_string1 .= "	-y, perform taxonomic and metabolic profiling\n";
+	$var_string1 .= "	-e, perform ARG prediction\n";
+	$var_string1 .= "	-m, perform assembly and annotation\n";
 
 	print WHITE, "$var_string1\n";
 

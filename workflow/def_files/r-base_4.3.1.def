@@ -6,5 +6,16 @@ From: r-base:4.3.1
 	apt-get install -y libssl-dev libgsl-dev libharfbuzz-dev libfribidi-dev libcairo2-dev
 	apt-get install -y libgmp3-dev libpng-dev libtiff5-dev libjpeg-dev
 	apt-get install -y libmpfr-dev
-#	Rscript -e "install.packages('BiocManager', dependencies = TRUE)"
-#	Rscript -e "BiocManager::install('ANCOMBC', dependencies = TRUE)"
+	Rscript -e "install.packages('BiocManager', dependencies = TRUE)"
+	Rscript -e "install.packages('cowplot', dependencies = TRUE)"
+	Rscript -e "install.packages('forcats', dependencies = TRUE)"
+	Rscript -e "install.packages('ggplot2', dependencies = TRUE)"
+	Rscript -e "install.packages('remotes', dependencies = TRUE)"
+	Rscript -e "install.packages('stringr', dependencies = TRUE)"
+	Rscript -e "install.packages('vegan', dependencies = TRUE)"
+	Rscript -e "BiocManager::install('mia', dependencies = TRUE)"
+	Rscript -e "BiocManager::install('ANCOMBC', dependencies = TRUE)"
+	Rscript -e "BiocManager::install('ALDEx2', dependencies = TRUE)"
+	Rscript -e "BiocManager::install('Maaslin2', dependencies = TRUE)"
+	Rscript -e "remotes::install_github('mikemc/speedyseq')"
+	Rscript -e "remotes::install_github('KarstensLab/microshades')"

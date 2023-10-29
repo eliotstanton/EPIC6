@@ -8,9 +8,16 @@ use strict;
 # Module name:  Stats
 # Created by:   Eliot Stanton (estanton@wisc.edu)
 # Created on:   13 September, 2023
-# Modified:     19 September, 2023
+# Modified:     29 October, 2023
 # Description:  Handles end-point statistics primarily by coordinating calling R
 #		scrpts.
+
+# ---------------------------------------------------------------------------- #
+
+# Subroutines:
+# - abundance:	Calls R script for performing differential abundance analysis
+# - divesity:	Calls R scripts for evaluating alpha and beta diversity
+# - process:	Processes DAA output to identify significant results for user
 
 # ---------------------------------------------------------------------------- #
 
@@ -35,19 +42,27 @@ sub abundance {
 	my $file_metadata		= $hash_filenames->{file_metadata};
 	my $flag_wildcard		= $hash_config->{opts}->{flag_wildcard};
 
+	# Variables:
+	my $flag_slurm			= $hash_config->{opts}->{flag_slurm};
+	my $var_process_abundance	= "8";
+	my $obj_process_abundance	= Parallel::ForkManager->new($var_process_abundance);
+
 	# ------------------------------
 
 	# Iterate through terms in $hash_analysis:
 	foreach my $var_term ( sort keys %{$hash_analysis} ) {
 
-		next if $var_term =~ /rgi_ref_seq/;
-		next if $var_term =~ /rgi_drug_class/;
-		next if $var_term =~ /rgi_AMR_fam/;
-		next if $var_term =~ /rgi_ARO_term/;
-		next if $var_term =~ /rgi_res_mech/;
-		next if $var_term =~ /metaphlan_tax/;
-		next if $var_term =~ /humann_path/;
-		next if $var_term =~ /humann_gene/;
+                # Start forking:
+                $obj_process_abundance->start and next;
+
+#		next if $var_term =~ /rgi_ref_seq/;
+#		next if $var_term =~ /rgi_drug_class/;
+#		next if $var_term =~ /rgi_AMR_fam/;
+#		next if $var_term =~ /rgi_ARO_term/;
+#		next if $var_term =~ /rgi_res_mech/;
+#		next if $var_term =~ /metaphlan_tax/;
+#		next if $var_term =~ /humann_path/;
+#		next if $var_term =~ /humann_gene/;
 
 		# Define output directory for Maaslin2:
 		my $dir_out	= "$dir_out/$var_term";
@@ -60,9 +75,6 @@ sub abundance {
 		my $var_string1 = "r-base \\\n";
 		$var_string1 .= "	workflow/stats/abundance.R \\\n";
 		$var_string1 .= "		$file_metadata \\\n";
-
-#		$var_string1 .= "		$hash_analysis->{$var_term}->{file_merged_abs} \\\n" unless $var_term =~ /humann/;
-#		$var_string1 .= "		$hash_analysis->{$var_term}->{file_merged_cpm} \\\n" if $var_term =~ /humann/;
 
 		$var_string1 .= "		$hash_analysis->{$var_term}->{file_merged_norm} \\\n" unless $var_term eq "metaphlan_tax";
 		$var_string1 .= "		$hash_analysis->{$var_term}->{file_merged_abs} \\\n" if $var_term eq "metaphlan_tax";
@@ -79,7 +91,13 @@ sub abundance {
 		# Run command:
 		system ($var_string1);
 
+		# End forking:
+		$obj_process_abundance->finish;
+
 	}
+
+	# Wait for all children from $var_process_humann:
+	$obj_process_abundance->wait_all_children;
 
 	# ------------------------------
 
@@ -110,12 +128,19 @@ sub diversity {
 	my $file_phylum_abundance	= $hash_filenames->{file_phylum_abundance};
 	my $file_phylo_pdf		= $hash_filenames->{file_phylo_pdf};
 
+	# Variables:
+	my $flag_slurm			= $hash_config->{opts}->{flag_slurm};
+	my $var_process_diversity	= "8";
+	my $obj_process_diversity	= Parallel::ForkManager->new($var_process_diversity);
+
 	# ------------------------------
 
 	# Loop through calculating alpha and beta diversity:
 	foreach my $var_term ( sort keys %{$hash_analysis} ) {
 
-		print "$var_term:\n";
+#		print "$var_term:\n";
+                # Start forking:
+		$obj_process_diversity->start and next;
 
 		# Define string to assess alpha diversity:
 		my $var_string1 = "r-base \\\n";
@@ -133,13 +158,6 @@ sub diversity {
 		$var_string2 .= "		$hash_analysis->{$var_term}->{file_beta_div} \\\n";
 		$var_string2 .= "		$hash_analysis->{$var_term}->{file_beta_div_pdf}";
 
-		# Define string for generating abundance plot:
-		my $var_string3 = "r-base \\\n";
-		$var_string3 .= "	workflow/stats/ARGs_abundance.R \\\n";
-		$var_string3 .= "	$hash_analysis->{$var_term}->{file_merged_norm} \\\n";
-		$var_string3 .= "	$file_metadata \\\n";
-		$var_string3 .= "	$hash_analysis->{$var_term}->{file_abundance_pdf }";
-
 		# Print command to assess alpha diverity:
 		Comms::print_command ( $var_string1 );
 
@@ -152,16 +170,31 @@ sub diversity {
 		# Run command:
 		system ($var_string2);
 
-		# Move on unless working with RGI data:
-		next unless $var_term =~ /rgi/;
+		# Generate abundance plots for ARGs:
+		if ( $var_term =~ /rgi/ ) {
 
-		# Print command to generate abundance plot:
-		Comms::print_command ( $var_string3 );
+			# Define string for generating abundance plot:
+			my $var_string3 = "r-base \\\n";
+			$var_string3 .= "	workflow/stats/ARGs_abundance.R \\\n";
+			$var_string3 .= "	$hash_analysis->{$var_term}->{file_merged_norm} \\\n";
+			$var_string3 .= "	$file_metadata \\\n";
+			$var_string3 .= "	$hash_analysis->{$var_term}->{file_abundance_pdf }";
 
-		# Run command:
-		system ( $var_string3 );
+			# Print command to generate abundance plot if working wit rgi:
+			Comms::print_command ( $var_string3 ) if $var_term =~ /rgi/;
+
+			# Run command for generating rgi plots:
+			system ( $var_string3 ) if $var_term =~ /rgi/;
+
+		}
+
+		# End forking:
+		$obj_process_diversity->finish;
 
 	}
+
+	# Wait for all children from $var_process_humann:
+	$obj_process_diversity->wait_all_children;
 
 	# ------------------------------
 
@@ -189,12 +222,12 @@ sub diversity {
 
 # ---------------------------------------------------------------------------- #
 
-# Subroutine:	process
+# Subroutine:	process_DAA
 # Description:	Processes DAA output and generate LFC figures.
 
 # --------------------------------------
 
-sub process {
+sub process_DAA {
 
 	# Arguments:
 	my ( $hash_config ) = @_;
@@ -202,9 +235,8 @@ sub process {
 	# Data structures:
 	my $hash_analysis	= $hash_config->{filenames}->{analysis};
 
-	# File paths:
-
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 
 	# ------------------------------
 
@@ -216,22 +248,35 @@ sub process {
 #		next if $var_term =~ /rgi_AMR_fam/;
 #		next if $var_term =~ /rgi_ARO_term/;
 #		next if $var_term =~ /rgi_res_mech/;
-		next if $var_term =~ /metaphlan_tax/;
-		next if $var_term =~ /humann_path/;
+#		next if $var_term =~ /metaphlan_tax/;
+#		next if $var_term =~ /humann_path/;
 #		next if $var_term =~ /humann_gene/;
+
+		# Define path for output files:
+		my $file_out	= $hash_analysis->{$var_term}->{"file_DAA_processed"};
+		my $file_plot	= $hash_analysis->{$var_term}->{"file_DAA_pdf"};
 
 		# Define path for file to be processed:
 		my $file_in = $hash_analysis->{$var_term}->{file_DAA};
-
-		# Define path for output file:
-
-		print "$var_term - $file_in\n";
 
 		# Define @array_out to hold output:
 		my @array_out;
 
 		# Import contents of $file_in to @array_in:
 		my @array_in = @{Edit::file_to_array ( $file_in )};
+
+		# Remove everything until [[1]]$res is detected:
+		for ( my $i = 0; $i < scalar @array_in; $i++ ) {
+
+			#print "$array_in[$i]\n";
+
+			last if $array_in[$i] =~ /\$res/;
+
+			splice @array_in, $i, 1;
+
+			$i--;
+
+		}
 
 		# Store header as a string:
 		my $var_header = $array_in[1];
@@ -243,51 +288,70 @@ sub process {
 		# individual array:
 		for ( my $i = 0; $i < scalar @array_in; $i++ ) {
 
+			# Move on if TRUE isn't detected:
+			next unless $array_in[$i] =~ /TRUE/ || $array_in[$i] =~ /FALSE/;
+
+			$array_in[$i] = substring $array_in[$i], -3 if $array_in[$i] =~ /^s__/;
+
+			# Split line into temporary array:
 			my @array_temp	= ( split " ", $array_in[$i] );
 
+			# Remove metaphlan formatting:
+			if ( $array_temp[1] =~ /^s__/ ) {
+
+				$array_temp[1] = substr $array_temp[1], 3;
+
+			}
+
+			# Move on unless second element in temporary array is defined:
 			unless ( $array_temp[1] ) {
-
-				splice @array_in, $i, 1;
-
-				$i--;
 
 				next;
 
 			}
 
+			# Store temporary array in @array_out:
 			else {
 
-				$array_in[$i]	= \@array_temp;
+				push @array_out, \@array_temp;
 
 			}
 
 		}
 
-#		print "$var_header\n";
-
 		# Sort by the 15th and 16th elements in each line:
-		@array_in = sort { $a->[17] cmp $b->[17] || $b->[18] cmp $a->[18] || $b->[19] cmp $a->[19] } @array_in;
+		@array_out = sort { $a->[17] cmp $b->[17] || $b->[18] cmp $a->[18] || $b->[19] cmp $a->[19] } @array_out;
 
-		for ( my $i = 0; $i < scalar @array_in; $i++ ) {
+		# Define string to hold data to be printed to file:
+		my $var_string;
 
-			next if $array_in[$i][17] eq "TRUE";
+		# Iterate through @array_out adding each line to $var_string:
+		for ( my $i = 0; $i < scalar @array_out; $i++ ) {
 
-			if ( $array_in[$i][18] eq "TRUE" || $array_in[$i][19] eq "TRUE" ) {
+			# Add lines with significant results:
+			if ( $array_out[$i][18] eq "TRUE" || $array_out[$i][19] eq "TRUE" ) {
 
-				print "$i: @{$array_in[$i]}\n";
+				$var_string .= "@{$array_out[$i]}\n";
 
 			}
 
-		}		
+		}
 
-#		print "@{$array_in[0]}\n";
+		# Add header if $var_string is defined:
+		$var_string = "$var_header\n$var_string" if $var_string;
 
-		# Iterate through @array_in and export appropriate elements to
-		# @array_out
+		# Print $var_string in $file_out:
+		Edit::write_string ( $file_out, $var_string ) if $var_string;
 
-		# Print @array_out to $file_out:
+		# Define string for calling R script that generates waterfall
+		# figure:
+		my $var_string2 = "r-base \\\n";
+		$var_string2 .= "	workflow/stats/lfc.R \\\n";
+		$var_string2 .= "	$file_out \\\n";
+		$var_string2 .= "	$file_plot \\\n";
 
 		# Call R script to generate figure from $file_out:
+		system ( $var_string2 ) if $var_string;
 
 	}
 

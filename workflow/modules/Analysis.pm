@@ -9,7 +9,7 @@ use Cwd;
 # Module name:	Analysis
 # Created by:	Eliot Stanton (estanton@wisc.edu)
 # Created on:	13 September, 2023
-# Modified:	19 September, 2023
+# Modified:	29 October, 2023
 # Description:	Handles end-point analysis
 
 # ---------------------------------------------------------------------------- #
@@ -25,19 +25,6 @@ use Cwd;
 #			read coverage.
 # - print_reads		Prints hash containing number of reads in FASTQ files.
 # - process_humann	Regroups, renames, and merges individual human output.
-
-# - R_phylum_abundance	Create phylum abundance figure using merged relative 
-#			abundance table from metaphlan
-# - R_tree		Create phylogenetic tree figure
-# - R_diversity		Calculate alpha and beta diversity using merged relative
-#			abundance tables from metaphlan, rgi, and humann
-# - R_div_box		Generate alpha diversity box plots
-# - R_div_scatter	Generate beta diversity scatter plots
-# - R_clr_transform	Perform clr transformation on Humann output data
-# - R_DAA		Perform differential abundance analysis using ANCOMBC
-#			and merged estimated read coverage metaphlan table,
-#			absolute read counts from rgi, and clr transformed
-#			humann output
 
 # ---------------------------------------------------------------------------- #
 
@@ -268,35 +255,13 @@ sub merge_metaphlan {
 	# data to $var_string_rel and $var_string_abs:
 	foreach my $var_rank ( sort keys %{$hash_clade} ) {
 
-#		print "$var_rank\n";
-
+		# Iterate through clades:
 		foreach my $var_clade ( sort keys %{$hash_clade->{$var_rank}} ) {
-
-			# Convert bars to spaces in $var_clade:
-#			my @array_temp	= ( split /\|/, $var_clade );
-#			my $var_clade2	= join ( "\t", @array_temp );
 
 			# Add $var_clade to both $var_string_rel and
 			# $var_string_abs:
 			$var_string_rel .= "$var_clade";
 			$var_string_abs .= "$var_clade";
-
-			# Count the total values while iterating:
-#			my $var_total	= 0;
-
-			# Iterate through the files in @array_in:
-#			foreach my $file_in ( @array_in ) {
-
-				# Define $hash_file:
-#				my $hash_file = $hash_clade->{$var_rank}->{$var_clade}->{$file_in};
-
-				# Add absolute abundance to $var_total:
-#				$var_total += $hash_file->{var_abs} if $hash_file->{var_abs};
-
-#			}
-
-			# Move on if no values detected:
-#			print "$var_clade\n" if $var_total == 0;
 
 			# Iterate through the files in @array_in:
 			foreach my $file_in ( @array_in ) {
@@ -326,15 +291,6 @@ sub merge_metaphlan {
 		}
 
 	}
-
-	# Merge $var_string_rel and $var_string_abs into $var_string:
-#	$var_string = "# Relative abundance:\n";
-#	$var_string .= $var_string_rel;
-#	$var_string .= "\n# Absolute abundance:\n";
-#	$var_string .= $var_string_abs;
-
-#	print "$file_merged_metaphlan\n";
-#	print "$var_string\n";
 
 	# Print $var_string to $file_out:
 	Edit::write_string ( $file_metaphlan_rel, $var_string_rel );
@@ -421,35 +377,11 @@ sub merge_rgi {
 	# Import data from rgi output files:
 	foreach my $var_name_ID ( @array_fastq ) {
 
-		# Define rgi output files:
-#		my $file_rgi	= $hash_files->{$var_name_ID}->{file_rgi};
-#		my $file_allele	= "$file_rgi.allele_mapping_data.txt";
-#		my $file_stats	= "$file_rgi.overall_mapping_stats.txt";
-
+		# Define RGI output files:
 		my $file_allele = $hash_files->{$var_name_ID}->{file_allele};
 		my $file_stats	= $hash_files->{$var_name_ID}->{file_stats};
 
-#		print "$file_allele\n";
-#		print "$file_stats\n";
-
-		# If $flag_wildcard is defined used wildcard output files:
-#		if ( $flag_wildcard ) {
-
-#			$file_allele	= "$var_name_ID\_wildcard/$var_name_ID\_rgi.allele_mapping_data.txt";
-#			$file_stats	= "$var_name_ID\_wildcard/$var_name_ID\_rgi.overall_mapping_stats.txt";
-
-#		}
-
-		# Otherwise use regular CARD output files:
-#		else {
-
-#			$file_allele	= "$var_name_ID/$var_name_ID\_rgi.allele_mapping_data.txt";
-#			$file_stats	= "$var_name_ID/$var_name_ID\_rgi.overall_mapping_stats.txt";
-
-#		}
-
-
-                # TODO: Check that files hold multiple lines of data:
+		# Check that files hold multiple lines of data:
 		unless ( -e $file_allele && -e $file_stats ) {
 
 			Comms::file_missing ( $file_allele ) unless -e $file_allele;
@@ -478,10 +410,6 @@ sub merge_rgi {
 			# Define each tab as a variable:
 			my $var_ref_seq		 	= $array_data[0];
 			my $var_ARO_term		= $array_data[1];
-
-#			my $var_ref_seq		 	= $array_data[0];
-#			my $var_ARO_term		= $array_data[1];
-
 			my $var_ARO_accession		= $array_data[2];
 			my $var_reference_model_type	= $array_data[3];
 			my $var_reference_db		= $array_data[4];
@@ -578,32 +506,20 @@ sub merge_rgi {
 
 			}
 
-#			print "$var_name_ID\n";
-
 			# Iteratively store $hash_temp in $hash_sample:
 			foreach my $var_term ( sort keys %{$hash_temp} ) {
-
-#				print "\t$var_term\n";
 
 				foreach my $var_tag ( sort keys %{$hash_temp->{$var_term}} ) {
 
 					my $var_fpkm	= $hash_temp->{$var_term}->{$var_tag}->{var_fpkm};
 					my $var_reads	= $hash_temp->{$var_term}->{$var_tag}->{var_reads};
 
-#					print "\t\t$var_tag:\n";
-#					print "\t\t$var_fpkm\n\t\t$var_reads\n";
-
 					$hash_samples->{$var_name_ID}->{$var_term}->{$var_tag}->{var_fpkm}	+= $var_fpkm;
 					$hash_samples->{$var_name_ID}->{$var_term}->{$var_tag}->{var_reads}	+= $var_reads;
-
-#				print "\t\t\t$hash_samples->{$var_name_ID}->{$var_term}->{var_fpkm}\n";
-#				print "\t\t\t$hash_samples->{$var_name_ID}->{$var_term}->{var_reads}\n";
 
 				}
 
 			}
-
-#			$hash_samples->{$var_name_ID}		= $hash_temp;
 
 		}
 
@@ -614,8 +530,6 @@ sub merge_rgi {
 	# Iterate through each sample and record the total number of reads to calculate relative abundance:
 	foreach my $var_term ( sort keys %{$hash_info} ) {
 
-#		print "$var_term\n";
-
 		foreach my $var_name_ID ( @array_fastq ) {
 
 			# Define variable to hold total number of reads:
@@ -624,8 +538,6 @@ sub merge_rgi {
 
 			# Iterate through list of tags:
 			foreach my $var_tag ( sort keys %{$hash_info->{$var_term}} ) {
-
-#				print "\t$var_tag\n";
 
 				my $var_reads = 0;
 
@@ -637,11 +549,7 @@ sub merge_rgi {
 
 				$var_total += $var_reads;
 
-#				print "\t$var_tag - $var_reads\n";
-
 			}
-
-#			print "\t$var_name_ID - $var_total\n";
 
 			# Store total in $hash_total:
 			$hash_total->{$var_name_ID}->{$var_term} = $var_total;
@@ -655,10 +563,6 @@ sub merge_rgi {
 	# Iterate through $hash_info creating tables:
 	foreach my $var_term ( sort keys %{$hash_info} ) {
 
-#		print "$var_term\n";
-
-#		next unless $var_term eq "ref_seq";
-
 		# Deifne strings to hold data:
 		my $var_string_fpkm;
 		my $var_string_reads;
@@ -667,13 +571,9 @@ sub merge_rgi {
 		# Iterate through list of tags:
 		foreach my $var_tag ( sort keys %{$hash_info->{$var_term}} ) {
 
-#			print "\t$var_tag\n";
-
 			# Replace spaces with underscores:
 			my @array_temp	= ( split /[\s,\|,\:]/, $var_tag );
 			my $var_tag2	= join "_", @array_temp;
-
-#			print "\t$var_tag2\n" if $var_term eq "ref_seq";
 
 			# Add initial tags to strings:
 			$var_string_fpkm .= $var_tag2;
@@ -688,22 +588,10 @@ sub merge_rgi {
 				my $var_drug_class	= $hash_info->{$var_term}->{$var_tag}->{var_drug_class};
 				my $var_res_mech	= $hash_info->{$var_term}->{$var_tag}->{var_res_mech};
 
-#				print "\t\t$var_AMR_fam\n";
-#				print "\t\t$var_ARO_term\n";
-#				print "\t\t$var_drug_class\n";
-#				print "\t\t$var_res_mech\n";
-
-				# Add additional tags to strings:
-#				$var_string_fpkm .= "\t$var_AMR_fam\t$var_ARO_term\t$var_drug_class\t$var_res_mech";
-#				$var_string_reads .= "\t$var_AMR_fam\t$var_ARO_term\t$var_drug_class\t$var_res_mech";
-#				$var_string_relative .= "\t$var_AMR_fam\t$var_ARO_term\t$var_drug_class\t$var_res_mech";
-
 			}
 
 			# Iterate through each sample:
 			foreach my $var_name_ID ( @array_fastq ) {
-
-#				print "\t\t$var_name_ID\n";
 
 				# Define variables to hold data:
 				my $var_fpkm		= "0";
@@ -733,9 +621,6 @@ sub merge_rgi {
 				$var_string_reads .= "\t$var_reads";
 				$var_string_relative .= "\t$var_relative";
 
-#				print "\t\t\t$var_fpkm\n";
-#				print "\t\t\t$var_reads\n";
-
 			}
 
 			# Add line breaks to strings:
@@ -744,8 +629,6 @@ sub merge_rgi {
 			$var_string_relative .= "\n";
 
 		}
-
-#		print "$var_term\n";
 
 		# Store res_seq strings:
 		if ( $var_term eq "ref_seq" ) {
@@ -763,8 +646,6 @@ sub merge_rgi {
 			$var_ARO_term_fpkm = "# Normalized FPKM values\n$var_ARO_term_fpkm\n$var_string_fpkm";
 			$var_ARO_term_reads = "# Read counts\n$var_ARO_term_reads\n$var_string_reads";
 			$var_ARO_term_relative = "# Relative abundance\n$var_ARO_term_relative\n$var_string_relative";
-
-#			print "$var_ARO_term_fpkm\n";
 
 		}
 
@@ -859,23 +740,19 @@ sub print_reads {
 		my $file_fastq_R1	= $hash_files->{file_fastq_R1};
 		my $file_trimmed_R1	= $hash_files->{file_trimmed_R1};
 		my $file_filtered_R1	= $hash_files->{file_filtered_R1};
-#		my $file_dedupe_R1	= $hash_files->{file_dedupe_R1};
 
 		my $hash_temp		= $hash_in->{$var_name_ID};
 		my $var_num_fastq	= $hash_temp->{$file_fastq_R1};
 		my $var_num_trimmed	= $hash_temp->{$file_trimmed_R1};
 		my $var_num_filtered	= $hash_temp->{$file_filtered_R1};
-#		my $var_num_dedupe	= $hash_temp->{$file_dedupe_R1};
 
 		my $var_per_trimmed	= sprintf( "%.2f", ( $var_num_trimmed / $var_num_fastq ) * 100 ) if $var_num_trimmed;
 		my $var_per_filtered	= sprintf( "%.2f", ( $var_num_filtered / $var_num_fastq ) * 100 ) if $var_num_filtered;
-#		my $var_per_dedupe	= sprintf( "%.2f", ( $var_num_dedupe / $var_num_fastq ) * 100 ) if $var_num_dedupe;
 
 		# Define temporary arrays:
 		my @array_temp1		 = ($file_fastq_R1, $var_num_fastq, "");
 		my @array_temp2		 = ($file_trimmed_R1, $var_num_trimmed, $var_per_trimmed);
 		my @array_temp3		 = ($file_filtered_R1, $var_num_filtered, $var_per_filtered);
-#		my @array_temp4		 = ($file_dedupe_R1, $var_num_dedupe, $var_per_dedupe);
 		my @array_temp5		 = ("","","");
 
 		print "@array_temp1\n@array_temp2\n@array_temp3\n\n"; #@array_temp4\n\n";
@@ -884,12 +761,11 @@ sub print_reads {
 		push @array_out, \@array_temp1;
 		push @array_out, \@array_temp2;
 		push @array_out, \@array_temp3;
-#		push @array_out, \@array_temp4;
 		push @array_out, \@array_temp5;
 
 		# Create a string with output and store individually in $dir_analysis:
 		my $var_string = "@array_temp1\t@array_temp2\t";
-		$var_string .= "@array_temp3\n"; #\t@array_temp4\n";
+		$var_string .= "@array_temp3\n";
 
 		Edit::write_string ( "$var_name_ID\_reads.txt", $var_string );
 
@@ -989,7 +865,7 @@ sub process_humann {
 	my $var_singularity     = "singularity exec --bind $dir_cwd ";
 	$var_singularity        .= "$dir_container_home/humann_$var_humann_version\.sif \\\n";
 
-	my $var_process_humann	= "24";
+	my $var_process_humann	= "48";
 	my $obj_process_humann	= Parallel::ForkManager->new($var_process_humann);
 	my $var_header		= join ( "\t", @array_fastq );
 	$var_header		= "\t$var_header\n";
@@ -1005,6 +881,7 @@ sub process_humann {
 		# Define individual filenames for input and output:
 		my $file_gene		= $hash_files->{$var_name_ID}->{file_humann_gene};
 		my $file_path		= $hash_files->{$var_name_ID}->{file_humann_path};
+		my $file_gene_rename	= $hash_files->{$var_name_ID}->{file_humann_gene_rename};
 		my $file_gene_cond	= $hash_files->{$var_name_ID}->{file_humann_gene_cond};
 		my $file_path_cond	= $hash_files->{$var_name_ID}->{file_humann_path_cond};
 		my $file_regroup	= $hash_files->{$var_name_ID}->{file_humann_regroup};
@@ -1014,19 +891,10 @@ sub process_humann {
 		my $file_path_cpm	= $hash_files->{$var_name_ID}->{file_humann_path_cpm};
 
 		# Check that all output files are present:
-		unless ( -e $file_gene && -e $file_path && -e $file_gene_cond &&
-		-e $file_path_cond && -e $file_regroup && -e $file_gene_relab &&
-		-e $file_gene_cpm && -e $file_path_relab && -e $file_path_cpm ) {
+		unless ( -e $file_gene && -e $file_path ) {
 
 			Comms::file_missing ( $file_gene ) unless -e $file_gene;
 			Comms::file_missing ( $file_path ) unless -e $file_path;
-			Comms::file_missing ( $file_gene_cond ) unless -e $file_gene_cond;
-			Comms::file_missing ( $file_path_cond ) unless -e $file_path_cond;
-			Comms::file_missing ( $file_regroup ) unless -e $file_regroup;
-			Comms::file_missing ( $file_gene_relab ) unless -e $file_gene_relab;
-			Comms::file_missing ( $file_gene_cpm ) unless -e $file_gene_cpm;
-			Comms::file_missing ( $file_path_relab ) unless -e $file_path_relab;
-			Comms::file_missing ( $file_path_cpm ) unless -e $file_path_cpm;
 
 			exit;
 
@@ -1036,64 +904,79 @@ sub process_humann {
 		# categories:
 		my $var_string1 = $var_singularity;
 		$var_string1 .= "	humann_regroup_table \\\n";
-		$var_string1 .= "		--input $file_gene_cond \\\n";
+		$var_string1 .= "		--input $file_gene \\\n";
 		$var_string1 .= "		--output $file_regroup \\\n";
 		$var_string1 .= "		--groups uniref90_rxn \\\n";
 
-		# Define primary string to renorm files:
+                # Define string to rename features in gene family file:
 		my $var_string2 = $var_singularity;
-		$var_string2 .= "	humann_renorm_table \\\n";
-		$var_string2 .= "		--special n \\\n";
-		$var_string2 .= "		--update-snames \\\n";
+		$var_string2	.= "	humann_rename_table \\\n";
+		$var_string2	.= "		--input $file_regroup \\\n";
+		$var_string2	.= "		--output $file_gene_rename \\\n";
+		$var_string2	.= "		--names metacyc-rxn \\\n";
+
+		# Define primary string to renorm files:
+		my $var_string3 = $var_singularity;
+		$var_string3 .= "	humann_renorm_table \\\n";
+		$var_string3 .= "		--special n \\\n";
+		$var_string3 .= "		--update-snames \\\n";
 
 		# Define secondary strings for renorming gene families and paths
 		# abundance files:
-		my $var_string3 = $var_string2;
-		$var_string3 .= "		--input $file_regroup \\\n";
+		my $var_string4 = $var_string3;
+		$var_string4 .= "		--input $file_gene_cond \\\n";
 
-		my $var_string4 = $var_string2;
-		$var_string4 .= "		--input $file_path_cond \\\n";
+		my $var_string5 = $var_string3;
+		$var_string5 .= "		--input $file_path_cond \\\n";
 
 		# Define tertiary strings for renorming files to either relative
 		# abundance or cpm:
-		my $var_string5 = $var_string3;
-		$var_string5 .= "		--output $file_gene_relab\\\n";
-		$var_string5 .= "		--units relab";
-
-		my $var_string6 = $var_string3;
-		$var_string6 .= "		--output $file_gene_cpm \\\n";
-		$var_string6 .= "		--units cpm";
+		my $var_string6 = $var_string4;
+		$var_string6 .= "		--output $file_gene_relab\\\n";
+		$var_string6 .= "		--units relab";
 
 		my $var_string7 = $var_string4;
-		$var_string7 .= "		--output $file_path_relab \\\n";
-		$var_string7 .= "		--units relab";
+		$var_string7 .= "		--output $file_gene_cpm \\\n";
+		$var_string7 .= "		--units cpm";
 
-		my $var_string8 = $var_string4;
-		$var_string8 .= "		--output $file_path_cpm \\\n";
-		$var_string8 .= "		--units cpm";
+		my $var_string8 = $var_string5;
+		$var_string8 .= "		--output $file_path_relab \\\n";
+		$var_string8 .= "		--units relab";
 
-		# Condense $file_gene and $file_path by removing the individual
-		# microbial community inputs:
-		condense_humann ( $file_gene, $file_gene_cond );
-		condense_humann ( $file_path, $file_path_cond );
+		my $var_string9 = $var_string5;
+		$var_string9 .= "		--output $file_path_cpm \\\n";
+		$var_string9 .= "		--units cpm";
 
-		# Print command for regrouping to user:
+		# ----------------------
+
+		# Print command to regroup gene family file to user:
 		Comms::print_command ( $var_string1 );
 
-		# Run the command for regrouping:
+		# Run command to regroup gene family file:
 		system ( $var_string1 );
 
+		# Print command to rename regrouped gene family files to user:
+		Comms::print_command ( $var_string2 );
+
+		# Run command to rename regrouped gene family file:
+		system ( $var_string2 );
+
+		# Condense $file_rename and $file_path by removing the individual
+		# microbial community inputs:
+		condense_humann ( $file_gene_rename, $file_gene_cond );
+		condense_humann ( $file_path, $file_path_cond );
+
 		# Print commands for renorming to the user:
-		Comms::print_command ( $var_string5 );
 		Comms::print_command ( $var_string6 );
 		Comms::print_command ( $var_string7 );
 		Comms::print_command ( $var_string8 );
+		Comms::print_command ( $var_string9 );
 
 		# Run the commands for regrouping:
-		system ( $var_string5 );
 		system ( $var_string6 );
 		system ( $var_string7 );
 		system ( $var_string8 );
+		system ( $var_string9 );
 
 		# End forking:
 		$obj_process_humann->finish;
@@ -1106,56 +989,56 @@ sub process_humann {
 	# ------------------------------
 
 	# Define primary string for calling join tool:
-	my $var_string9 = $var_singularity;
-	$var_string9 .= "	humann_join_tables \\\n";
-	$var_string9 .= "		--input $dir_humann \\\n";
+	my $var_string10 = $var_singularity;
+	$var_string10	.= "	humann_join_tables \\\n";
+	$var_string10	.= "		--input $dir_humann \\\n";
 
 	# Define secondary strings for joining regrouped files:
-	my $var_string10 = $var_string9;
-	$var_string10 .= "		--file_name genefamilies_regroup \\\n";
-	$var_string10 .= "		--output $file_gene_rpk";
+	my $var_string11 = $var_string10;
+	$var_string11	.= "		--file_name genefamilies_cond \\\n";
+	$var_string11	.= "		--output $file_gene_rpk";
 
-	my $var_string11 = $var_string9;
-	$var_string11 .= "		--file_name pathabundance_cond \\\n";
-	$var_string11 .= "		--output $file_path_rpk";
+	my $var_string12 = $var_string10;
+	$var_string12	.= "		--file_name pathabundance_cond \\\n";
+	$var_string12	.= "		--output $file_path_rpk";
 
 	# Define secondary strings for joining cpm files:
-	my $var_string12 = $var_string9;
-	$var_string12 .= "		--file_name genefamilies_cpm \\\n";
-	$var_string12 .= "		--output $file_gene_cpm";
+	my $var_string13 = $var_string10;
+	$var_string13	.= "		--file_name genefamilies_cpm \\\n";
+	$var_string13	.= "		--output $file_gene_cpm";
 
-	my $var_string13 = $var_string9;
-	$var_string13 .= "		--file_name pathabundance_cpm \\\n";
-	$var_string13 .= "		--output $file_path_cpm";
+	my $var_string14 = $var_string10;
+	$var_string14	.= "		--file_name pathabundance_cpm \\\n";
+	$var_string14	.= "		--output $file_path_cpm";
 
 	# Define secondary strings for joining abundance files:
-	my $var_string14 = $var_string9;
-	$var_string14 .= "		--file_name genefamilies_relab \\\n";
-	$var_string14 .= "		--output $file_gene_relab";
+	my $var_string15 = $var_string10;
+	$var_string15	.= "		--file_name genefamilies_relab \\\n";
+	$var_string15	.= "		--output $file_gene_relab";
 
-	my $var_string15 = $var_string9;
-	$var_string15 .= "		--file_name pathabundance_relab \\\n";
-	$var_string15 .= "		--output $file_path_relab";
+	my $var_string16 = $var_string10;
+	$var_string16	.= "		--file_name pathabundance_relab \\\n";
+	$var_string16	.= "		--output $file_path_relab";
 
 	# Print commands for joining tables to user:
-	Comms::print_command ( $var_string10 );
 	Comms::print_command ( $var_string11 );
-
 	Comms::print_command ( $var_string12 );
-	Comms::print_command ( $var_string13 );
 
+	Comms::print_command ( $var_string13 );
 	Comms::print_command ( $var_string14 );
+
 	Comms::print_command ( $var_string15 );
+	Comms::print_command ( $var_string16 );
 
 	# Run commands for joining tables:
-	system ( $var_string10 );
 	system ( $var_string11 );
-
 	system ( $var_string12 );
-	system ( $var_string13 );
 
+	system ( $var_string13 );
 	system ( $var_string14 );
+
 	system ( $var_string15 );
+	system ( $var_string16 );
 
 	# ------------------------------
 
@@ -1165,8 +1048,6 @@ sub process_humann {
 
 		# Move on if the term doesn't relate to humann:
 		next unless $var_term =~ /humann/;
-
-#		print "$var_term\n";
 
 		# Iterate through files:
 		foreach my $var_tag ( keys %{$hash_analysis->{$var_term}} ) {
@@ -1180,12 +1061,8 @@ sub process_humann {
 			# Get file path:
 			my $file_in	= $hash_analysis->{$var_term}->{$var_tag};
 
-#			print "\t$var_tag - $file_in\n";
-
 			# Convert file to array:
 			my @array_file = @{Edit::file_to_array( $file_in )};
-
-#			print "$array_file[2]\n";
 
 			# Replace first line of @array_file with $var_header:
 			$array_file[0]	= $var_header;
@@ -1199,23 +1076,20 @@ sub process_humann {
 			# Remove third line if beginning of line matches UNMAPPED:
 			splice @array_file, 1, 1 if $array_file[1] =~ /^UNMAPPED/;
 
-#			print "$array_file[0]\n\n";
-
 			# Iterate through @array_file removing white spacess but
 			# leaving tabs:
 			foreach my $var_line ( @array_file ) {
 
 
-#				# Replace white spaces with underscores:
+				# Replace white spaces with underscores:
 				$var_line =~ tr / /\_/;
 
-#				# Add current string to $var_string:
+				# Add current string to $var_string:
 				$var_string .= "$var_line\n";
 
 			}
 
-#			print "$var_string\n";
-
+			# Write string to file:
 			Edit::write_string ( $file_in, $var_string );
 
 		}

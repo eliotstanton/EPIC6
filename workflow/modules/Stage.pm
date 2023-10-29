@@ -31,7 +31,7 @@ use warnings;
 sub assemble {
 
 	# Arguments:
-	my ( $hash_config, $var_name_ID, $var_threads, $var_memory ) = @_;
+	my ( $hash_config, $var_name_ID, $var_threads, $var_memory, $var_jobID ) = @_;
 
 	# Data structures:
 	my $hash_filenames	= $hash_config->{filenames}->{$var_name_ID};
@@ -48,6 +48,7 @@ sub assemble {
 	my $file_prokka_log	= $hash_filenames->{file_prokka_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_min_contig	= $hash_config->{variables}->{min_contig};
 	my $var_announce;
 	my $var_return;
@@ -63,19 +64,41 @@ sub assemble {
 
 	Comms::start_finish ( "spades", $var_name_ID, "start", $file_spades_log );
 
-	$var_return	= Wrapper::spades ( $hash_config, $var_name_ID,
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{spades}->{cpus} if $flag_slurm;
+	$var_memory	= $hash_config->{resources}->{slurm}->{spades}->{memory} if $flag_slurm;
+
+	$var_return = Wrapper::spades ( $hash_config, $var_name_ID,
 	$file_filtered_R1, $file_filtered_R2, $file_spades, $file_spades_log, 
-	$var_threads, $var_memory );
+	$var_threads, $var_memory, $var_jobID );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "spades" ); die; }
+	if ( $var_return != 0 && !$flag_slurm) { Comms::terminate_code ( "spades" ); die; }
 
 	# Trim contigs file:
 	Edit::trim_contigs ( $hash_config, $file_contigs, $file_spades,
-	$var_min_contig, $var_name_ID );
-	
+	$var_min_contig, $var_name_ID ) unless $flag_slurm;
+
+	# Define string to trim contigs file:
+	my $var_string = "sbatch \\\n";
+	$var_string .= "	--job-name=$var_name_ID\_trim_contigs \\\n";
+	$var_string .= "	--dependency=afterok:$var_return \\\n";
+	$var_string .= "	--wrap \"workflow/trim_contigs.pl \\\n";
+	$var_string .= "		$file_contigs \\\n";
+	$var_string .= "		$file_spades \\\n";
+	$var_string .= "		$var_min_contig \\\n";
+	$var_string .= "		$var_name_ID\"";
+
+	Comms::print_command ( $var_string );
+
+	# Trim contigs file submitting to Slurm:
+	$var_return = `$var_string` if $flag_slurm;
+
+	# Extract jobID:
+	$var_jobID = (split " ", $var_return)[-1] if $flag_slurm;
+
 	# Calculate and print the number of contigs:
-	$var_announce = Comms::num_contigs ( $file_spades, $var_min_contig );
+	$var_announce = Comms::num_contigs ( $file_spades, $var_min_contig ) unless $flag_slurm;
 
 	Comms::start_finish ( "spades", $var_name_ID, "finish", $file_spades_log );
 
@@ -83,11 +106,15 @@ sub assemble {
 
 	Comms::start_finish ( "quast", $var_name_ID, "start", $file_quast_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{quast}->{cpus} if $flag_slurm;
+	$var_memory	= $hash_config->{resources}->{slurm}->{quast}->{memory} if $flag_slurm;	
+
 	$var_return	= Wrapper::quast ( $hash_config, $var_name_ID, 
-	$file_spades, $file_quast, $file_quast_log, $var_threads );
+	$file_spades, $file_quast, $file_quast_log, $var_threads, $var_jobID );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "quast" ); die; }
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "quast" ); die; }
 
 	Comms::start_finish ( "quast", $var_name_ID, "finish", $file_quast_log );
 
@@ -95,12 +122,16 @@ sub assemble {
 
 	Comms::start_finish ( "prokka", $var_name_ID, "start", $file_prokka_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{prokka}->{cpus} if $flag_slurm;
+	$var_memory	= $hash_config->{resources}->{slurm}->{prokka}->{memory} if $flag_slurm;
+
 	$var_return	= Wrapper::prokka ( $hash_config, $var_name_ID, $file_spades,
-	$file_prokka, $file_prokka_log, $var_threads);
+	$file_prokka, $file_prokka_log, $var_threads, $var_jobID);
 
 	# Print error message and die if $var_return doesn't equal zero:
 
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "prokka" ); die; }
+	if ( $var_return == 0 && !$flag_slurm) { Comms::terminate_code ( "prokka" ); die; }
 
 	Comms::start_finish ( "prokka", $var_name_ID, "finish", $file_prokka_log );
 
@@ -121,7 +152,7 @@ sub assemble {
 sub classify {
 
 	# Arguments:
-	my ( $hash_config, $var_name_ID, $var_threads, $var_memory ) = @_;
+	my ( $hash_config, $var_name_ID, $var_threads, $var_memory, $var_jobID ) = @_;
 
 	# Data structures:
 	my $hash_filenames	= $hash_config->{filenames}->{$var_name_ID};
@@ -144,6 +175,7 @@ sub classify {
 	my $file_humann_log	= $hash_filenames->{file_humann_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -163,11 +195,14 @@ sub classify {
 
 	Comms::start_finish ( "kraken2", $var_name_ID, "start", $file_kraken2_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{kraken2}->{cpus} if $flag_slurm;
+
 	$var_return = Wrapper::kraken2 ( $hash_config, $var_name_ID, $file_filtered_R1, $file_filtered_R2,
-	$file_kraken2_out, $file_kraken2_report, $file_kraken2_log, $var_threads );
+	$file_kraken2_out, $file_kraken2_report, $file_kraken2_log, $var_threads, $var_jobID );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "kraken2" ); die; }
+	if ( $var_return != 0 && !$flag_slurm) { Comms::terminate_code ( "kraken2" ); die; }
 
 	Comms::start_finish ( "kraken2", $var_name_ID, "finish", $file_kraken2_log );
 
@@ -175,11 +210,14 @@ sub classify {
 
 	Comms::start_finish ( "metaphlan", $var_name_ID, "start", $file_metaphlan_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{metaphlan}->{cpus} if $flag_slurm;
+
 	$var_return = Wrapper::metaphlan ( $hash_config, $var_name_ID, $file_filtered_R1, $file_filtered_R2,
-	$file_bowtie, $file_metaphlan, $file_metaphlan_log, $var_threads );
+	$file_bowtie, $file_metaphlan, $file_metaphlan_log, $var_threads, $var_jobID );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "metahlan" ); die; }
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "metaphlan" ); die; }
 
 	Comms::start_finish ( "metaphlan", $var_name_ID, "finish", $file_metaphlan_log );
 
@@ -211,22 +249,37 @@ sub classify {
 	# Concatenate $file_filtered_R1 and $file_filtered_R2:
 	unless ( -e $file_merged_fastq ) {
 
-		my $var_string2	= "cat $file_filtered_R1 $file_filtered_R2 > $file_merged_fastq";
+		my $var_string2	= "cat \\\n";
+		$var_string2	.= "	$file_filtered_R1 \\\n";
+		$var_string2	.= "	$file_filtered_R2 > $file_merged_fastq";
 
-		Comms::print_command ( $var_string2 );
+		system ( $var_string2 ) unless $flag_slurm;
 
-		system ( $var_string2 );
+		my $var_string3 = "sbatch \\\n";
+		$var_string3 .= "	--dependency=afterok:$var_jobID \\\n" if $var_jobID;
+		$var_string3 .= "	--job-name=$var_name_ID\_cat \\\n";
+		$var_string3 .= "	--wrap \"$var_string2\"";
+
+		Comms::print_command ( $var_string3 ) if $flag_slurm;
+
+		$var_return = `$var_string3` if $flag_slurm;
+
+		# Extract jobID:
+                $var_return = (split " ", $var_return)[-1] if $flag_slurm;
 
 	}
 
 	Comms::start_finish ( "humann", $var_name_ID, "start", $file_humann_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{humann}->{cpus} if $flag_slurm;
+
 	$var_return = Wrapper::humann ( $hash_config, $var_name_ID,
 	$file_merged_fastq, $file_humann, $file_metaphlan, $file_humann_log,
-	$var_threads, $var_memory );
+	$var_threads, $var_memory, $var_return );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "humann" ); die; }
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "humann" ); die; }
 
 	Comms::start_finish ( "humann", $var_name_ID, "finish", $file_humann_log );
 
@@ -247,7 +300,7 @@ sub classify {
 sub predict {
 
 	# Arguments:
-	my ( $hash_config, $var_name_ID, $var_threads ) = @_;
+	my ( $hash_config, $var_name_ID, $var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 	my $hash_filenames	= $hash_config->{filenames}->{$var_name_ID};
@@ -259,6 +312,7 @@ sub predict {
 	my $file_rgi_log	= $hash_filenames->{file_rgi_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -270,11 +324,14 @@ sub predict {
 
 	Comms::start_finish ( "rgi bwt", $var_name_ID, "start", $file_rgi_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{rgi}->{cpus} if $flag_slurm;
+
 	$var_return = Wrapper::rgi_bwt ( $hash_config, $var_name_ID, $file_filtered_R1,
-	$file_filtered_R2, $file_rgi, $file_rgi_log, $var_threads );
+	$file_filtered_R2, $file_rgi, $file_rgi_log, $var_threads, $var_jobID );
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "rgi bwt" ); die; }
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "rgi bwt" ); die; }
 
 	Comms::start_finish ( "rgi bwt", $var_name_ID, "finish", $file_rgi_log );
 
@@ -315,6 +372,7 @@ sub process {
 	my $file_bwa_log	= $hash_filenames->{file_bwa_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -330,13 +388,19 @@ sub process {
 
 	Comms::start_finish ( "trimmomatic", $var_name_ID, "start", $file_trimmed_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads	= $hash_config->{resources}->{slurm}->{trimmomatic}->{cpus} if $flag_slurm;
+
 	# Trim reads:
-	Wrapper::trimmomatic ( $hash_config, "E01_S9", $file_fastq_R1, $file_fastq_R2, 
+	$var_return = Wrapper::trimmomatic ( $hash_config, $var_name_ID, $file_fastq_R1, $file_fastq_R2, 
 		$file_trimmed_R1, $file_trimmed_R2, $file_unpaired_R1, $file_unpaired_R2, 
-		$file_trimmed_log, "64" );
+		$file_trimmed_log, $var_threads );
+
+	# Store job ID for SLURM dependencies in $hash_config:
+	$hash_config->{jobID}->{$var_name_ID}->{"trimmomatic"} = $var_return if $flag_slurm;
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "trimmomatic" ); die; }		
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "trimmomatic" ); die; }		
 
 	Comms::start_finish ( "trimmomatic", $var_name_ID, "finish", $file_trimmed_log );
 
@@ -344,20 +408,26 @@ sub process {
 
 	Comms::start_finish ( "bwa", $var_name_ID, "start", $file_bwa_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads = $hash_config->{resources}->{slurm}->{bwa}->{cpus} if $flag_slurm;
+
 	# Filter reads:
-	Wrapper::bwa ( $hash_config, "E01_S9", $file_trimmed_R1, $file_trimmed_R2,
-		$file_concatenated, $file_bam, $file_filtered_R1, $file_filtered_R2,
-		$file_bwa_log, "64" );
+	$var_return = Wrapper::bwa ( $hash_config, $var_name_ID, $file_trimmed_R1, $file_trimmed_R2,
+	$file_concatenated, $file_bam, $file_filtered_R1, $file_filtered_R2,
+	$file_bwa_log, $var_threads, $var_return );
+
+	# Store job ID for SLURM dependencies in $hash_config:
+	$hash_config->{jobID}->{$var_name_ID}->{bwa} = $var_return if $flag_slurm;
 
 	# Print error message and die if $var_return doesn't equal zero:
-	unless ( $var_return == 0 ) { Comms::terminate_code ( "bwa" ); die; }
+	if ( $var_return != 0 && !$flag_slurm ) { Comms::terminate_code ( "bwa" ); die; }
 
 	Comms::start_finish ( "bwa", $var_name_ID, "finish", $file_bwa_log );
 
 	# ------------------------------
 	
 	# End subroutine:
-	return;
+	return $var_return;
 
 }
 
@@ -372,7 +442,7 @@ sub process {
 sub postprocess {
 
 	# Arguments:
-	my ( $hash_config, $var_name_ID, $var_threads ) = @_;
+	my ( $hash_config, $var_name_ID, $var_threads, $var_jobID ) = @_;
 
 	# Data structures:
 	my $hash_filenames	= $hash_config->{filenames}->{$var_name_ID};
@@ -386,6 +456,7 @@ sub postprocess {
 	my $file_log		= $hash_filenames->{file_fastqc_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -400,6 +471,9 @@ sub postprocess {
 
 	Comms::start_finish ("fastqc", $var_name_ID, "start", $file_log );
 
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads = $hash_config->{resources}->{slurm}->{fastqc}->{cpus} if $flag_slurm;
+
 	# Run QC on original reads:
 	$var_return = Wrapper::fastqc ( $hash_config, $var_name_ID,
 		$file_fastq_R1, $file_fastq_R2, $file_log, $var_threads );
@@ -412,7 +486,7 @@ sub postprocess {
 
 	# Run QC on trimmed and filtered reads:
 	$var_return = Wrapper::fastqc ( $hash_config, $var_name_ID,
-	$file_filtered_R1, $file_filtered_R2, $file_log, $var_threads );
+	$file_filtered_R1, $file_filtered_R2, $file_log, $var_threads, $var_jobID );
 
 	Comms::start_finish ("fastqc", $var_name_ID, "finish", $file_log );
 
@@ -447,6 +521,7 @@ sub subsample {
 	my $file_log		= $hash_filenames->{file_seqtk_log};
 
 	# Variables:
+	my $flag_slurm		= $hash_config->{opts}->{flag_slurm};
 	my $var_return;
 
 	# ------------------------------
@@ -460,6 +535,9 @@ sub subsample {
 	system ( "mkdir -p $dir_logs/$var_name_ID" ) unless -d "$dir_logs/$var_name_ID";
 
 	Comms::start_finish ( "seqtk", $var_name_ID, "start", $file_log );
+
+	# Redefine resources if $flag_slurm is defined:
+	$var_threads = $hash_config->{resources}->{slurm}->{seqtk}->{cpus} if $flag_slurm;
 
 	# Subsample R1 read:
 	$var_return = Wrapper::seqtk ( $hash_config, $var_name_ID, $file_fastq_R1,

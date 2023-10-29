@@ -125,9 +125,19 @@ reordered <-	reorder_samples_by (
 				theme ( 
 					legend.key.size = unit(0.4, "cm"), 
 					text = element_text(size=7),
-					axis.text.x = element_text(size = 6),
+					axis.text.x = element_text(
+						size = 6,
+						angle = 90
+					),
 					legend.position = "none"
+				) +
+				facet_grid (
+					~ Daycare_attendance,
+					scales = "free",
+					space = "free",
+					labeller = label_both
 				)
+
 
 	# Place plots on grid:
 	plot_out <-	cowplot::plot_grid(

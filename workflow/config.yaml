@@ -40,57 +40,57 @@ resources:
   memory: '896'
   slurm:
     bwa:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '8'
+      memory: 32GB
+      time: 4:00:00
     fastqc:
       cpus: '4'
       memory: 4GB
       time: 1:00:00
     humann:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '16'
+      memory: 128GB
+      time: 24:00:00
     kraken2:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '8'
+      memory: 24GB
+      time: 12:00:00
     metaphlan:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '16'
+      memory: 24GB
+      time: 4:00:00
     prokka:
       cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      memory: 8GB
+      time: 24:00:00
     quast:
       cpus: '4'
       memory: 4GB
       time: 1:00:00
     r-base:
       cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      memory: 16GB
+      time: 4:00:00
     rgi:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '16'
+      memory: 24GB
+      time: 24:00:00
     samtools:
       cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      memory: 16GB
+      time: 4:00:00
     seqtk:
       cpus: '4'
       memory: 4GB
       time: 1:00:00
     spades:
-      cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      cpus: '16'
+      memory: 88
+      time: 24:00:00
     trimmomatic:
       cpus: '4'
-      memory: 4GB
-      time: 1:00:00
+      memory: 16GB
+      time: 4:00:00
   threads: '120'
 software:
   bwa:
